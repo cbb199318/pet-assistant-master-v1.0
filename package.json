@@ -1,0 +1,12 @@
+{
+  "name": "pet-assistant-master-v1.0",
+  "private": true,
+  "scripts": {
+    "dev:backend": "PORT=4317 npm --prefix backend run start:dev",
+    "dev:user": "EXPO_PUBLIC_API_PORT=4317 npm --prefix frontend run web -- --port 8934 --host lan --clear",
+    "dev:user:native": "node scripts/start-native-dev.js",
+    "dev:admin": "VITE_API_PORT=4317 npm --prefix admin-web run dev",
+    "build:backend": "npm --prefix backend run build",
+    "build:admin": "npm --prefix admin-web run build"
+  }
+}
