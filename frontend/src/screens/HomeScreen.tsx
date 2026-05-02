@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Image } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { careApi, getApiErrorMessage } from '../services/api';
 
 const HomeScreen = ({ navigation }: any) => {
   const [user, setUser] = useState<any>(null);
+  const [todayPlans, setTodayPlans] = useState<any[]>([]);
+  const [planError, setPlanError] = useState('');
   const [fadeAnim] = useState(new Animated.Value(0));
   const [scaleAnim] = useState(new Animated.Value(0.9));
 
@@ -35,23 +39,40 @@ const HomeScreen = ({ navigation }: any) => {
     }
   };
 
+  const loadTodayPlans = async () => {
+    try {
+      const response = await careApi.getTodayPlans();
+      setTodayPlans(response);
+      setPlanError('');
+    } catch (error: any) {
+      setPlanError(getApiErrorMessage(error, '今日护理计划加载失败'));
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void loadUser();
+      void loadTodayPlans();
+    }, []),
+  );
+
   const menuItems = [
     {
       title: '宠物档案',
       icon: '📋',
-      onPress: () => navigation.navigate('PetProfile'),
+      onPress: () => navigation.navigate('PetsTab'),
       color: '#4CAF50',
     },
     {
       title: '健康管理',
       icon: '🏥',
-      onPress: () => navigation.navigate('PetProfile'),
+      onPress: () => navigation.navigate('PetsTab'),
       color: '#2196F3',
     },
     {
       title: '日常护理',
       icon: '🧴',
-      onPress: () => navigation.navigate('PetProfile'),
+      onPress: () => navigation.navigate('PetsTab'),
       color: '#FF9800',
     },
     {
@@ -63,19 +84,19 @@ const HomeScreen = ({ navigation }: any) => {
     {
       title: '设置',
       icon: '⚙️',
-      onPress: () => navigation.navigate('Settings'),
+      onPress: () => navigation.navigate('SettingsTab'),
       color: '#607D8B',
     },
     {
       title: '社区',
       icon: '💬',
-      onPress: () => navigation.navigate('Community'),
+      onPress: () => navigation.navigate('CommunityTab'),
       color: '#8E44AD',
     },
     {
       title: '知识百科',
       icon: '📚',
-      onPress: () => navigation.navigate('Knowledge'),
+      onPress: () => navigation.navigate('KnowledgeTab'),
       color: '#16A085',
     },
   ];
@@ -159,13 +180,46 @@ const HomeScreen = ({ navigation }: any) => {
             <Text style={styles.cardTitle}>健康提醒</Text>
             <Text style={styles.cardBadge}>重要</Text>
           </View>
-          <Text style={styles.cardContent}>先添加宠物档案，再进入健康管理和护理记录。</Text>
+          {todayPlans.length > 0 ? (
+            <View style={styles.todayPlanList}>
+              <Text style={styles.cardContent}>今天共有 {todayPlans.length} 条护理计划待执行。</Text>
+              {todayPlans.slice(0, 3).map((plan) => (
+                <View key={plan.id} style={styles.todayPlanRow}>
+                  <View style={styles.todayPlanContent}>
+                    <Text style={styles.todayPlanTitle}>{plan.pet?.name || '宠物'} · {plan.type}</Text>
+                    <Text style={styles.todayPlanMeta}>
+                      {plan.time || plan.reminder_time || '未设置时间'} · {plan.completedToday ? '今天已完成' : '待完成'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.todayPlanButton, plan.completedToday && styles.todayPlanButtonDone]}
+                    disabled={plan.completedToday}
+                    onPress={async () => {
+                      try {
+                        await careApi.completeTodayPlan(plan.id);
+                        await loadTodayPlans();
+                      } catch (error: any) {
+                        setPlanError(getApiErrorMessage(error, '更新今日计划失败'));
+                      }
+                    }}
+                  >
+                    <Text style={[styles.todayPlanButtonText, plan.completedToday && styles.todayPlanButtonTextDone]}>
+                      {plan.completedToday ? '已完成' : '完成'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.cardContent}>先添加宠物档案，再进入健康管理和护理记录。</Text>
+          )}
+          {planError ? <Text style={styles.inlineErrorText}>{planError}</Text> : null}
           <TouchableOpacity 
             style={styles.cardButton}
-            onPress={() => navigation.navigate('PetProfile')}
+            onPress={() => navigation.navigate('PetsTab')}
             activeOpacity={0.8}
           >
-            <Text style={styles.cardButtonText}>进入宠物档案</Text>
+            <Text style={styles.cardButtonText}>{todayPlans.length > 0 ? '进入护理与健康管理' : '进入宠物档案'}</Text>
             <Text style={styles.cardButtonIcon}>→</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -213,14 +267,14 @@ const HomeScreen = ({ navigation }: any) => {
           <View style={styles.dualActionRow}>
             <TouchableOpacity
               style={[styles.cardButton, styles.secondaryCardButton]}
-              onPress={() => navigation.navigate('Community')}
+              onPress={() => navigation.navigate('CommunityTab')}
               activeOpacity={0.8}
             >
               <Text style={styles.cardButtonText}>进入社区</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.cardButton, styles.secondaryCardButton]}
-              onPress={() => navigation.navigate('Knowledge')}
+              onPress={() => navigation.navigate('KnowledgeTab')}
               activeOpacity={0.8}
             >
               <Text style={styles.cardButtonText}>查看知识</Text>
@@ -364,6 +418,53 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 15,
     lineHeight: 20,
+  },
+  todayPlanList: {
+    marginBottom: 6,
+  },
+  todayPlanRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#edf3ee',
+  },
+  todayPlanContent: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  todayPlanTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#243029',
+    marginBottom: 4,
+  },
+  todayPlanMeta: {
+    fontSize: 12,
+    color: '#6c7b72',
+  },
+  todayPlanButton: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  todayPlanButtonDone: {
+    backgroundColor: '#edf5ee',
+  },
+  todayPlanButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  todayPlanButtonTextDone: {
+    color: '#4d6658',
+  },
+  inlineErrorText: {
+    color: '#c0392b',
+    fontSize: 12,
+    marginBottom: 12,
   },
   cardButton: {
     flexDirection: 'row',

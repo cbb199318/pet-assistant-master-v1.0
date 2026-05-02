@@ -21,6 +21,15 @@ export class Vaccination {
   @Column({ type: 'date', nullable: true })
   next_date: Date;
 
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  hospital: string;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  doctor: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  record_image_url: string;
+
   @Column({ type: 'text', nullable: true })
   notes: string;
 

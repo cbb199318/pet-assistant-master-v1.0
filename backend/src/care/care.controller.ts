@@ -23,11 +23,15 @@ export class CareController {
   async createCare(@Request() req, @Body() careData: {
     type: string;
     description: string;
+    mode?: 'record' | 'plan';
     date: Date;
     time?: string;
+    reminder_time?: string;
+    repeat_pattern?: 'daily' | 'weekdays' | 'weekly' | 'custom';
     duration?: number;
     quantity?: string;
     notes?: string;
+    is_completed?: boolean;
     pet_id: number;
   }): Promise<Care> {
     return this.careService.createCare(req.user.userId, careData);
@@ -36,6 +40,14 @@ export class CareController {
   @Get('pet/:pet_id')
   async getCaresByPetId(@Request() req, @Param('pet_id') pet_id: number): Promise<Care[]> {
     return this.careService.getCaresByPetId(Number(pet_id), req.user.userId);
+  }
+
+  @Get('today')
+  async getTodayPlans(@Request() req, @Query('pet_id') pet_id?: string) {
+    return this.careService.getTodayPlans(
+      req.user.userId,
+      pet_id ? Number(pet_id) : undefined,
+    );
   }
 
   @Get(':id')
@@ -47,11 +59,15 @@ export class CareController {
   async updateCare(@Request() req, @Param('id') id: number, @Body() careData: {
     type?: string;
     description?: string;
+    mode?: 'record' | 'plan';
     date?: Date;
     time?: string;
+    reminder_time?: string;
+    repeat_pattern?: 'daily' | 'weekdays' | 'weekly' | 'custom';
     duration?: number;
     quantity?: string;
     notes?: string;
+    is_completed?: boolean;
   }): Promise<Care> {
     return this.careService.updateCare(Number(id), req.user.userId, careData);
   }
@@ -59,6 +75,11 @@ export class CareController {
   @Delete(':id')
   async deleteCare(@Request() req, @Param('id') id: number): Promise<void> {
     return this.careService.deleteCare(Number(id), req.user.userId);
+  }
+
+  @Post(':id/complete-today')
+  async completeTodayPlan(@Request() req, @Param('id') id: number) {
+    return this.careService.completeTodayPlan(Number(id), req.user.userId);
   }
 
   @Get('statistics/:pet_id')

@@ -1,12 +1,38 @@
-import { Controller, Post, Get, Put, Delete, Body, Param, Request, ValidationPipe, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Request,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+  ValidationPipe,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { extname } from 'path';
+import { mkdirSync, writeFileSync } from 'fs';
 import { HealthService } from './health.service';
+import {
+  HEALTH_UPLOAD_DIR,
+  HEALTH_UPLOAD_LIMIT,
+  HEALTH_UPLOAD_PUBLIC_PREFIX,
+} from './health.constants';
 
 class CreateVaccinationDto {
   pet_id: number;
   vaccine_name: string;
   vaccination_date: Date;
   next_date?: Date;
+  hospital?: string;
+  doctor?: string;
+  record_image_url?: string;
   notes?: string;
 }
 
@@ -15,6 +41,9 @@ class UpdateVaccinationDto {
   vaccine_name?: string;
   vaccination_date?: Date;
   next_date?: Date;
+  hospital?: string;
+  doctor?: string;
+  record_image_url?: string;
   notes?: string;
 }
 
@@ -24,6 +53,9 @@ class CreateDewormingDto {
   product_name: string;
   deworming_date: Date;
   next_date?: Date;
+  hospital?: string;
+  doctor?: string;
+  record_image_url?: string;
   notes?: string;
 }
 
@@ -33,6 +65,9 @@ class UpdateDewormingDto {
   product_name?: string;
   deworming_date?: Date;
   next_date?: Date;
+  hospital?: string;
+  doctor?: string;
+  record_image_url?: string;
   notes?: string;
 }
 
@@ -45,6 +80,7 @@ class CreateCheckupDto {
   temperature?: number;
   diagnosis?: string;
   recommendations?: string;
+  record_image_url?: string;
 }
 
 class UpdateCheckupDto {
@@ -56,13 +92,86 @@ class UpdateCheckupDto {
   temperature?: number;
   diagnosis?: string;
   recommendations?: string;
+  record_image_url?: string;
 }
 
 @Controller('api/health')
 export class HealthController {
   constructor(private healthService: HealthService) {}
 
-  // 疫苗接种记录
+  private saveUploadedFile(file: { originalname: string; buffer: Buffer }) {
+    mkdirSync(HEALTH_UPLOAD_DIR, { recursive: true });
+    const filename = `health-${Date.now()}-${Math.random().toString(36).slice(2, 10)}${extname(file.originalname || '.jpg') || '.jpg'}`;
+    writeFileSync(`${HEALTH_UPLOAD_DIR}/${filename}`, file.buffer);
+    return `${HEALTH_UPLOAD_PUBLIC_PREFIX}/${filename}`;
+  }
+
+  @Get('provider-options')
+  @UseGuards(AuthGuard('jwt'))
+  async getProviderOptions(@Query('keyword') keyword?: string) {
+    return this.healthService.getProviderOptions(keyword);
+  }
+
+  @Post('upload-record-image')
+  @UseGuards(AuthGuard('jwt'))
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: {
+        fileSize: HEALTH_UPLOAD_LIMIT,
+      },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('image/')) {
+          return callback(new BadRequestException('仅支持上传图片文件'), false);
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async uploadRecordImage(@UploadedFile() file: any) {
+    if (!file) {
+      throw new BadRequestException('请上传图片文件');
+    }
+
+    return {
+      url: this.saveUploadedFile(file),
+    };
+  }
+
+  @Post('ocr')
+  @UseGuards(AuthGuard('jwt'))
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: {
+        fileSize: HEALTH_UPLOAD_LIMIT,
+      },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('image/')) {
+          return callback(new BadRequestException('仅支持上传图片文件'), false);
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async recognizeRecordImage(
+    @UploadedFile() file: any,
+    @Body('recordType') recordType: 'vaccination' | 'deworming' | 'checkup',
+  ) {
+    if (!file) {
+      throw new BadRequestException('请上传图片文件');
+    }
+    if (!['vaccination', 'deworming', 'checkup'].includes(recordType)) {
+      throw new BadRequestException('recordType 不正确');
+    }
+
+    const imageUrl = this.saveUploadedFile(file);
+    const result = await this.healthService.recognizeRecordFromImage(recordType, file);
+
+    return {
+      ...result,
+      imageUrl,
+    };
+  }
+
   @Post('vaccinations')
   @UseGuards(AuthGuard('jwt'))
   async createVaccination(@Request() req, @Body(ValidationPipe) body: CreateVaccinationDto) {
@@ -73,6 +182,9 @@ export class HealthController {
       body.vaccine_name,
       body.vaccination_date,
       body.next_date,
+      body.hospital,
+      body.doctor,
+      body.record_image_url,
       body.notes,
     );
   }
@@ -87,9 +199,9 @@ export class HealthController {
   @Put('vaccinations/:id')
   @UseGuards(AuthGuard('jwt'))
   async updateVaccination(
-    @Request() req, 
-    @Param('id') id: number, 
-    @Body(ValidationPipe) body: UpdateVaccinationDto
+    @Request() req,
+    @Param('id') id: number,
+    @Body(ValidationPipe) body: UpdateVaccinationDto,
   ) {
     const user_id = req.user.userId;
     return this.healthService.updateVaccination(id, body.pet_id, user_id, body);
@@ -98,15 +210,14 @@ export class HealthController {
   @Delete('vaccinations/:id')
   @UseGuards(AuthGuard('jwt'))
   async deleteVaccination(
-    @Request() req, 
-    @Param('id') id: number, 
-    @Body('pet_id') pet_id: number
+    @Request() req,
+    @Param('id') id: number,
+    @Body('pet_id') pet_id: number,
   ) {
     const user_id = req.user.userId;
     return this.healthService.deleteVaccination(id, pet_id, user_id);
   }
 
-  // 驱虫记录
   @Post('dewormings')
   @UseGuards(AuthGuard('jwt'))
   async createDeworming(@Request() req, @Body(ValidationPipe) body: CreateDewormingDto) {
@@ -118,6 +229,9 @@ export class HealthController {
       body.product_name,
       body.deworming_date,
       body.next_date,
+      body.hospital,
+      body.doctor,
+      body.record_image_url,
       body.notes,
     );
   }
@@ -132,9 +246,9 @@ export class HealthController {
   @Put('dewormings/:id')
   @UseGuards(AuthGuard('jwt'))
   async updateDeworming(
-    @Request() req, 
-    @Param('id') id: number, 
-    @Body(ValidationPipe) body: UpdateDewormingDto
+    @Request() req,
+    @Param('id') id: number,
+    @Body(ValidationPipe) body: UpdateDewormingDto,
   ) {
     const user_id = req.user.userId;
     return this.healthService.updateDeworming(id, body.pet_id, user_id, body);
@@ -143,15 +257,14 @@ export class HealthController {
   @Delete('dewormings/:id')
   @UseGuards(AuthGuard('jwt'))
   async deleteDeworming(
-    @Request() req, 
-    @Param('id') id: number, 
-    @Body('pet_id') pet_id: number
+    @Request() req,
+    @Param('id') id: number,
+    @Body('pet_id') pet_id: number,
   ) {
     const user_id = req.user.userId;
     return this.healthService.deleteDeworming(id, pet_id, user_id);
   }
 
-  // 体检记录
   @Post('checkups')
   @UseGuards(AuthGuard('jwt'))
   async createCheckup(@Request() req, @Body(ValidationPipe) body: CreateCheckupDto) {
@@ -166,6 +279,7 @@ export class HealthController {
       body.temperature,
       body.diagnosis,
       body.recommendations,
+      body.record_image_url,
     );
   }
 
@@ -179,9 +293,9 @@ export class HealthController {
   @Put('checkups/:id')
   @UseGuards(AuthGuard('jwt'))
   async updateCheckup(
-    @Request() req, 
-    @Param('id') id: number, 
-    @Body(ValidationPipe) body: UpdateCheckupDto
+    @Request() req,
+    @Param('id') id: number,
+    @Body(ValidationPipe) body: UpdateCheckupDto,
   ) {
     const user_id = req.user.userId;
     return this.healthService.updateCheckup(id, body.pet_id, user_id, body);
@@ -190,9 +304,9 @@ export class HealthController {
   @Delete('checkups/:id')
   @UseGuards(AuthGuard('jwt'))
   async deleteCheckup(
-    @Request() req, 
-    @Param('id') id: number, 
-    @Body('pet_id') pet_id: number
+    @Request() req,
+    @Param('id') id: number,
+    @Body('pet_id') pet_id: number,
   ) {
     const user_id = req.user.userId;
     return this.healthService.deleteCheckup(id, pet_id, user_id);

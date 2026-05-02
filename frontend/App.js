@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, Platform, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -24,15 +25,53 @@ import PostDetailScreen from './src/screens/PostDetailScreen';
 import ArticleDetailScreen from './src/screens/ArticleDetailScreen';
 
 const Stack = createStackNavigator();
-const LAST_ROUTE_KEY = 'lastRoute';
-const RESTORABLE_ROUTES = new Set([
-  'Home',
-  'PetProfile',
-  'AiAssistant',
-  'Community',
-  'Knowledge',
-  'Settings',
-]);
+const Tab = createBottomTabNavigator();
+
+function MainTabs() {
+  return (
+    <Tab.Navigator
+      initialRouteName="HomeTab"
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: '#2f7d4f',
+        tabBarInactiveTintColor: '#91a098',
+        tabBarStyle: {
+          height: 66,
+          paddingTop: 8,
+          paddingBottom: 8,
+          backgroundColor: '#ffffff',
+          borderTopWidth: 1,
+          borderTopColor: '#e5ece7',
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+        },
+        tabBarIcon: ({ color }) => {
+          const icons = {
+            HomeTab: '⌂',
+            PetsTab: '♥',
+            KnowledgeTab: '✦',
+            CommunityTab: '◎',
+            SettingsTab: '⚙',
+          };
+
+          return (
+            <Text style={{ color, fontSize: 18, fontWeight: '700' }}>
+              {icons[route.name] || '•'}
+            </Text>
+          );
+        },
+      })}
+    >
+      <Tab.Screen name="HomeTab" component={HomeScreen} options={{ title: '首页' }} />
+      <Tab.Screen name="PetsTab" component={PetProfileScreen} options={{ title: '宠物' }} />
+      <Tab.Screen name="KnowledgeTab" component={KnowledgeScreen} options={{ title: '知识' }} />
+      <Tab.Screen name="CommunityTab" component={CommunityScreen} options={{ title: '交流' }} />
+      <Tab.Screen name="SettingsTab" component={SettingsScreen} options={{ title: '我的' }} />
+    </Tab.Navigator>
+  );
+}
 
 export default function App() {
   const navigationRef = useRef(null);
@@ -61,13 +100,11 @@ export default function App() {
       try {
         const [token, lastRoute] = await Promise.all([
           AsyncStorage.getItem('token'),
-          AsyncStorage.getItem(LAST_ROUTE_KEY),
+          AsyncStorage.getItem('lastRoute'),
         ]);
 
         if (token) {
-          setInitialRouteName(
-            lastRoute && RESTORABLE_ROUTES.has(lastRoute) ? lastRoute : 'Home',
-          );
+          setInitialRouteName(lastRoute === 'Login' ? 'Login' : 'MainTabs');
           return;
         }
 
@@ -84,11 +121,12 @@ export default function App() {
 
   const handleNavigationStateChange = async () => {
     const routeName = navigationRef.current?.getCurrentRoute?.()?.name;
-    if (!routeName || !RESTORABLE_ROUTES.has(routeName)) {
+    if (!routeName) {
       return;
     }
 
-    await AsyncStorage.setItem(LAST_ROUTE_KEY, routeName);
+    const persistedRoute = routeName === 'Login' || routeName === 'Register' ? routeName : 'MainTabs';
+    await AsyncStorage.setItem('lastRoute', persistedRoute);
   };
 
   const bootView = useMemo(
@@ -115,7 +153,7 @@ export default function App() {
       >
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="MainTabs" component={MainTabs} />
         <Stack.Screen name="PetProfile" component={PetProfileScreen} />
         <Stack.Screen name="AddPet" component={AddPetScreen} />
         <Stack.Screen name="EditPet" component={EditPetScreen} />
@@ -130,11 +168,8 @@ export default function App() {
         <Stack.Screen name="AddCare" component={AddCareScreen} />
         <Stack.Screen name="EditCare" component={AddCareScreen} />
         <Stack.Screen name="AiAssistant" component={AiAssistantScreen} />
-        <Stack.Screen name="Community" component={CommunityScreen} />
         <Stack.Screen name="PostDetail" component={PostDetailScreen} />
-        <Stack.Screen name="Knowledge" component={KnowledgeScreen} />
         <Stack.Screen name="ArticleDetail" component={ArticleDetailScreen} />
-        <Stack.Screen name="Settings" component={SettingsScreen} />
       </Stack.Navigator>
       <StatusBar style="auto" />
     </NavigationContainer>

@@ -12,8 +12,8 @@ export class Article {
   @Column()
   content: string;
 
-  @Column({ name: 'cover_image', nullable: true })
-  cover_image: string;
+  @Column({ name: 'cover_image', type: 'varchar', length: 255, nullable: true })
+  cover_image: string | null;
 
   @Column({ default: 0 })
   views: number;
@@ -23,6 +23,21 @@ export class Article {
 
   @Column({ default: 0 })
   favorites: number;
+
+  @Column({ type: 'varchar', length: 20, default: 'published' })
+  status: string;
+
+  @Column({ type: 'varchar', length: 20, default: 'knowledge' })
+  kind: string;
+
+  @Column({ type: 'boolean', default: false })
+  is_recommended: boolean;
+
+  @Column({ type: 'int', default: 0 })
+  sort_order: number;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  recommendation_reason: string | null;
 
   @ManyToOne(() => Category, category => category.articles)
   category: Category;

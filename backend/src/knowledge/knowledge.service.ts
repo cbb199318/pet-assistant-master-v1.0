@@ -60,6 +60,11 @@ export class KnowledgeService {
     cover_image?: string;
     image?: string;
     categoryId: number;
+    status?: string;
+    kind?: string;
+    is_recommended?: boolean;
+    sort_order?: number;
+    recommendation_reason?: string;
   }): Promise<Article> {
     const category = await this.categoryRepository.findOne({ where: { id: articleData.categoryId } });
     if (!category) {
@@ -71,15 +76,21 @@ export class KnowledgeService {
       content: articleData.content,
       cover_image: articleData.cover_image || articleData.image,
       category,
+      status: articleData.status || 'published',
+      kind: articleData.kind || 'knowledge',
+      is_recommended: Boolean(articleData.is_recommended),
+      sort_order: Number(articleData.sort_order) || 0,
+      recommendation_reason: articleData.recommendation_reason || null,
     });
 
     return this.articleRepository.save(article);
   }
 
-  async getArticles(limit: number = 10, offset: number = 0): Promise<Article[]> {
+  async getArticles(limit: number = 10, offset: number = 0, kind: string = 'knowledge'): Promise<Article[]> {
     return this.articleRepository.find({
+      where: { status: 'published', kind },
       relations: ['category'],
-      order: { created_at: 'DESC' },
+      order: { sort_order: 'DESC', created_at: 'DESC' },
       take: limit,
       skip: offset,
     });
@@ -87,7 +98,7 @@ export class KnowledgeService {
 
   async getArticleById(id: number): Promise<Article> {
     const article = await this.articleRepository.findOne({
-      where: { id },
+      where: { id, status: 'published' },
       relations: ['category'],
     });
     if (!article) {
@@ -101,11 +112,11 @@ export class KnowledgeService {
     return article;
   }
 
-  async getArticlesByCategoryId(categoryId: number, limit: number = 10, offset: number = 0): Promise<Article[]> {
+  async getArticlesByCategoryId(categoryId: number, limit: number = 10, offset: number = 0, kind: string = 'knowledge'): Promise<Article[]> {
     return this.articleRepository.find({
-      where: { category: { id: categoryId } },
+      where: { category: { id: categoryId }, status: 'published', kind },
       relations: ['category'],
-      order: { created_at: 'DESC' },
+      order: { sort_order: 'DESC', created_at: 'DESC' },
       take: limit,
       skip: offset,
     });
@@ -117,6 +128,11 @@ export class KnowledgeService {
     cover_image?: string;
     image?: string;
     categoryId?: number;
+    status?: string;
+    kind?: string;
+    is_recommended?: boolean;
+    sort_order?: number;
+    recommendation_reason?: string;
   }): Promise<Article> {
     const article = await this.getArticleById(id);
 
@@ -132,6 +148,16 @@ export class KnowledgeService {
     Object.assign(article, {
       ...articleData,
       cover_image: articleData.cover_image || articleData.image || article.cover_image,
+      is_recommended:
+        articleData.is_recommended !== undefined
+          ? Boolean(articleData.is_recommended)
+          : article.is_recommended,
+      sort_order:
+        articleData.sort_order !== undefined ? Number(articleData.sort_order) || 0 : article.sort_order,
+      recommendation_reason:
+        articleData.recommendation_reason !== undefined
+          ? articleData.recommendation_reason || null
+          : article.recommendation_reason,
     });
     delete (article as Partial<Article> & { image?: string }).image;
     return this.articleRepository.save(article);
@@ -160,16 +186,29 @@ export class KnowledgeService {
   async searchArticles(keyword: string, limit: number = 10): Promise<Article[]> {
     return this.articleRepository.createQueryBuilder('article')
       .leftJoinAndSelect('article.category', 'category')
-      .where('article.title LIKE :keyword OR article.content LIKE :keyword', { keyword: `%${keyword}%` })
-      .orderBy('article.created_at', 'DESC')
+      .where('article.status = :status', { status: 'published' })
+      .andWhere('article.kind = :kind', { kind: 'knowledge' })
+      .andWhere('(article.title LIKE :keyword OR article.content LIKE :keyword)', { keyword: `%${keyword}%` })
+      .orderBy('article.sort_order', 'DESC')
+      .addOrderBy('article.created_at', 'DESC')
       .take(limit)
       .getMany();
   }
 
   async getRecommendedArticles(limit: number = 5): Promise<Article[]> {
     return this.articleRepository.find({
+      where: { status: 'published', kind: 'knowledge', is_recommended: true },
       relations: ['category'],
-      order: { views: 'DESC' },
+      order: { sort_order: 'DESC', views: 'DESC' },
+      take: limit,
+    });
+  }
+
+  async getRecommendedProducts(limit: number = 6): Promise<Article[]> {
+    return this.articleRepository.find({
+      where: { status: 'published', kind: 'product', is_recommended: true },
+      relations: ['category'],
+      order: { sort_order: 'DESC', created_at: 'DESC' },
       take: limit,
     });
   }

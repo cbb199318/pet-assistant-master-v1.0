@@ -7,8 +7,10 @@ import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { AdminAuthController } from './admin-auth.controller';
 import { AdminAuthService } from './admin-auth.service';
+import { AdminAuditLog } from './admin-audit-log.entity';
 import { AdminUser } from './admin-user.entity';
 import { AdminJwtStrategy } from './admin-jwt.strategy';
+import { SystemSetting } from './system-setting.entity';
 import { User } from '../users/user.entity';
 import { Pet } from '../pets/pet.entity';
 import { Vaccination } from '../health/vaccination.entity';
@@ -27,6 +29,8 @@ dotenv.config();
   imports: [
     TypeOrmModule.forFeature([
       AdminUser,
+      AdminAuditLog,
+      SystemSetting,
       User,
       Pet,
       Vaccination,

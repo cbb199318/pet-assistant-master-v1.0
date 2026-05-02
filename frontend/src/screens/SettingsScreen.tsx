@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import ImageUploaderField from '../components/ImageUploaderField';
 import { getApiErrorMessage, userApi } from '../services/api';
 
 type ModalMode = 'profile' | 'password' | 'email' | null;
@@ -27,6 +28,7 @@ const SettingsScreen = ({ navigation }: any) => {
   const [profileForm, setProfileForm] = useState({ nickname: '', avatar: '' });
   const [passwordForm, setPasswordForm] = useState({ oldPassword: '', newPassword: '' });
   const [email, setEmail] = useState('');
+  const canGoBack = navigation.canGoBack();
 
   const modalTitle = useMemo(() => {
     if (modalMode === 'profile') return '编辑个人信息';
@@ -152,11 +154,12 @@ const SettingsScreen = ({ navigation }: any) => {
             onChangeText={(nickname) => setProfileForm((prev) => ({ ...prev, nickname }))}
             placeholder="昵称"
           />
-          <TextInput
-            style={styles.modalInput}
+          <ImageUploaderField
             value={profileForm.avatar}
-            onChangeText={(avatar) => setProfileForm((prev) => ({ ...prev, avatar }))}
-            placeholder="头像 URL"
+            onChange={(avatar) => setProfileForm((prev) => ({ ...prev, avatar }))}
+            uploadImage={userApi.uploadAvatar}
+            label="头像"
+            helperText="上传后会自动写入个人资料。"
           />
         </>
       );
@@ -210,11 +213,15 @@ const SettingsScreen = ({ navigation }: any) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
+        {canGoBack ? (
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
         <Text style={styles.title}>设置</Text>
-        <View style={{ width: 40 }} />
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
@@ -320,6 +327,9 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 10,
+  },
+  headerSpacer: {
+    width: 40,
   },
   backButtonText: {
     color: '#fff',

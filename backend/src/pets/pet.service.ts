@@ -69,35 +69,11 @@ export class PetService {
   }
 
   async deletePet(id: number, user_id: number) {
-    console.log('开始删除宠物:', { id, user_id });
     const pet = await this.getPetById(id, user_id);
-    console.log('找到宠物:', pet);
-
-    // 删除相关的疫苗接种记录
-    console.log('删除相关的疫苗接种记录');
-    const vaccinationResult = await this.vaccinationRepository.delete({ pet_id: id });
-    console.log('疫苗接种记录删除结果:', vaccinationResult);
-    
-    // 删除相关的驱虫记录
-    console.log('删除相关的驱虫记录');
-    const dewormingResult = await this.dewormingRepository.delete({ pet_id: id });
-    console.log('驱虫记录删除结果:', dewormingResult);
-    
-    // 删除相关的体检记录
-    console.log('删除相关的体检记录');
-    const checkupResult = await this.checkupRepository.delete({ pet_id: id });
-    console.log('体检记录删除结果:', checkupResult);
-    
-    // 删除相关的护理记录（从care_records表中）
-    console.log('删除相关的护理记录');
-    const careResult = await this.careRepository.delete({ pet_id: id });
-    console.log('护理记录删除结果:', careResult);
-
-    // 删除宠物
-    console.log('删除宠物');
-    const petResult = await this.petRepository.remove(pet);
-    console.log('宠物删除结果:', petResult);
-    
-    return petResult;
+    await this.vaccinationRepository.delete({ pet_id: id });
+    await this.dewormingRepository.delete({ pet_id: id });
+    await this.checkupRepository.delete({ pet_id: id });
+    await this.careRepository.delete({ pet_id: id });
+    return this.petRepository.remove(pet);
   }
 }

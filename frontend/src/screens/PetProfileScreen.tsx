@@ -6,6 +6,7 @@ import { getApiErrorMessage, petApi } from '../services/api';
 const PetProfileScreen = ({ navigation }: any) => {
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const canGoBack = navigation.canGoBack();
 
   // 使用 useFocusEffect 替代 useEffect，实现热刷新
   useFocusEffect(
@@ -74,9 +75,13 @@ const PetProfileScreen = ({ navigation }: any) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
+        {canGoBack ? (
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
         <View style={styles.headerContent}>
           <Text style={styles.title}>宠物档案</Text>
           <TouchableOpacity style={styles.addButton} onPress={handleAddPet}>
@@ -171,6 +176,9 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 10,
+  },
+  headerSpacer: {
+    width: 44,
   },
   backButtonText: {
     color: '#fff',

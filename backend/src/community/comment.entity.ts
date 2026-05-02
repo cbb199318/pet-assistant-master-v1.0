@@ -16,6 +16,9 @@ export class Comment {
   @Column()
   content: string;
 
+  @Column({ type: 'varchar', length: 20, default: 'approved' })
+  status: string;
+
   @ManyToOne(() => User, user => user.comments)
   user: User;
 

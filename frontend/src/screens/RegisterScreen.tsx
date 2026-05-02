@@ -43,7 +43,7 @@ const RegisterScreen = ({ navigation }: any) => {
       await AsyncStorage.setItem('token', response.token);
       await AsyncStorage.setItem('user', JSON.stringify(response.user));
       setTimeout(() => {
-        navigation.navigate('Home');
+        navigation.navigate('MainTabs');
       }, 1000);
     } catch (error: any) {
       showFeedback('error', getApiErrorMessage(error, '注册失败，请重试'));

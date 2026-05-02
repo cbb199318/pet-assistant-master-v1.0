@@ -13,12 +13,13 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { communityApi, getApiErrorMessage } from '../services/api';
 
-type TabKey = 'all' | 'mine' | 'comments';
+type TabKey = 'all' | 'mine' | 'comments' | 'bookings';
 
 const tabs: Array<{ key: TabKey; label: string }> = [
   { key: 'all', label: '全部帖子' },
   { key: 'mine', label: '我的帖子' },
   { key: 'comments', label: '我的评论' },
+  { key: 'bookings', label: '我的预约' },
 ];
 
 const CommunityScreen = ({ navigation }: any) => {
@@ -26,23 +27,35 @@ const CommunityScreen = ({ navigation }: any) => {
   const [posts, setPosts] = useState<any[]>([]);
   const [myPosts, setMyPosts] = useState<any[]>([]);
   const [myComments, setMyComments] = useState<any[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [bookingForm, setBookingForm] = useState({
+    serviceType: 'hospital',
+    serviceName: '',
+    serviceAddress: '',
+    bookingDate: '',
+    bookingTime: '',
+    notes: '',
+  });
+  const canGoBack = navigation.canGoBack();
 
   const fetchCommunityData = async () => {
     try {
-      const [allPostResponse, myPostResponse, myCommentResponse] = await Promise.all([
+      const [allPostResponse, myPostResponse, myCommentResponse, bookingResponse] = await Promise.all([
         communityApi.getPosts({ limit: 30, offset: 0 }),
         communityApi.getMyPosts(),
         communityApi.getMyComments(),
+        communityApi.getBookings(),
       ]);
       setPosts(allPostResponse);
       setMyPosts(myPostResponse);
       setMyComments(myCommentResponse);
+      setBookings(bookingResponse);
     } catch (error: any) {
       Alert.alert('错误', getApiErrorMessage(error, '获取社区数据失败'));
     } finally {
@@ -64,14 +77,25 @@ const CommunityScreen = ({ navigation }: any) => {
     if (activeTab === 'comments') {
       return myComments;
     }
+    if (activeTab === 'bookings') {
+      return bookings;
+    }
     return posts;
-  }, [activeTab, myComments, myPosts, posts]);
+  }, [activeTab, bookings, myComments, myPosts, posts]);
 
   const resetComposer = () => {
     setShowComposer(false);
     setEditingPostId(null);
     setTitle('');
     setContent('');
+    setBookingForm({
+      serviceType: 'hospital',
+      serviceName: '',
+      serviceAddress: '',
+      bookingDate: '',
+      bookingTime: '',
+      notes: '',
+    });
   };
 
   const handleCreateOrUpdatePost = async () => {
@@ -158,6 +182,50 @@ const CommunityScreen = ({ navigation }: any) => {
     ]);
   };
 
+  const handleCreateBooking = async () => {
+    if (!bookingForm.serviceName.trim() || !bookingForm.serviceAddress.trim() || !bookingForm.bookingDate.trim() || !bookingForm.bookingTime.trim()) {
+      Alert.alert('提示', '请补全预约服务名称、地址、日期和时间');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await communityApi.createBooking({
+        serviceType: bookingForm.serviceType,
+        serviceName: bookingForm.serviceName.trim(),
+        serviceAddress: bookingForm.serviceAddress.trim(),
+        bookingDate: bookingForm.bookingDate.trim(),
+        bookingTime: bookingForm.bookingTime.trim(),
+        notes: bookingForm.notes.trim() || undefined,
+      });
+      resetComposer();
+      await fetchCommunityData();
+      Alert.alert('成功', '预约已创建');
+    } catch (error: any) {
+      Alert.alert('错误', getApiErrorMessage(error, '创建预约失败'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancelBooking = (booking: any) => {
+    Alert.alert('取消预约', '确定取消这条预约吗？', [
+      { text: '返回', style: 'cancel' },
+      {
+        text: '取消预约',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await communityApi.updateBookingStatus(booking.id, 'cancelled');
+            await fetchCommunityData();
+          } catch (error: any) {
+            Alert.alert('错误', getApiErrorMessage(error, '取消预约失败'));
+          }
+        },
+      },
+    ]);
+  };
+
   const renderPostCard = (post: any, isMine: boolean) => (
     <TouchableOpacity
       key={post.id}
@@ -238,6 +306,59 @@ const CommunityScreen = ({ navigation }: any) => {
     </View>
   );
 
+  const renderBookingCard = (booking: any) => (
+    <View key={booking.id} style={styles.bookingCard}>
+      <View style={styles.bookingHeader}>
+        <View style={styles.bookingTitleWrap}>
+          <Text style={styles.bookingTitle}>{booking.serviceName}</Text>
+          <Text style={styles.bookingType}>
+            {booking.serviceType === 'hospital'
+              ? '医院问诊'
+              : booking.serviceType === 'grooming'
+                ? '洗护美容'
+                : booking.serviceType === 'boarding'
+                  ? '寄养托管'
+                  : '其他服务'}
+          </Text>
+        </View>
+        <View style={[styles.bookingStatusBadge, booking.status === 'cancelled' && styles.bookingStatusBadgeCancelled]}>
+          <Text style={[styles.bookingStatusText, booking.status === 'cancelled' && styles.bookingStatusTextCancelled]}>
+            {booking.status === 'pending'
+              ? '待确认'
+              : booking.status === 'confirmed'
+                ? '已确认'
+                : booking.status === 'completed'
+                  ? '已完成'
+                  : '已取消'}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.bookingMeta}>地址：{booking.serviceAddress}</Text>
+      <Text style={styles.bookingMeta}>预约时间：{booking.bookingDate} {booking.bookingTime}</Text>
+      {booking.notes ? <Text style={styles.bookingMeta}>备注：{booking.notes}</Text> : null}
+      <View style={styles.manageRow}>
+        {booking.status !== 'cancelled' && booking.status !== 'completed' ? (
+          <TouchableOpacity style={styles.manageButton} onPress={() => handleCancelBooking(booking)}>
+            <Text style={styles.manageButtonText}>取消预约</Text>
+          </TouchableOpacity>
+        ) : null}
+        <TouchableOpacity
+          style={[styles.manageButton, styles.manageDangerButton]}
+          onPress={async () => {
+            try {
+              await communityApi.deleteBooking(booking.id);
+              await fetchCommunityData();
+            } catch (error: any) {
+              Alert.alert('错误', getApiErrorMessage(error, '删除预约失败'));
+            }
+          }}
+        >
+          <Text style={[styles.manageButtonText, styles.manageDangerText]}>删除记录</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   const renderEmptyState = () => {
     if (activeTab === 'mine') {
       return (
@@ -257,6 +378,15 @@ const CommunityScreen = ({ navigation }: any) => {
       );
     }
 
+    if (activeTab === 'bookings') {
+      return (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>你还没有预约记录</Text>
+          <Text style={styles.emptySubtitle}>可以先预约医院问诊、洗护美容或寄养服务，这里会集中展示状态。</Text>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.emptyState}>
         <Text style={styles.emptyTitle}>还没有帖子</Text>
@@ -268,9 +398,13 @@ const CommunityScreen = ({ navigation }: any) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
+        {canGoBack ? (
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
         <Text style={styles.title}>社区</Text>
         <TouchableOpacity
           style={styles.composeButton}
@@ -283,7 +417,7 @@ const CommunityScreen = ({ navigation }: any) => {
           }}
         >
           <Text style={styles.composeButtonText}>
-            {showComposer ? '收起' : editingPostId ? '编辑中' : '发帖'}
+            {showComposer ? '收起' : activeTab === 'bookings' ? '预约' : editingPostId ? '编辑中' : '发帖'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -304,7 +438,7 @@ const CommunityScreen = ({ navigation }: any) => {
         ))}
       </View>
 
-      {showComposer ? (
+      {showComposer && activeTab !== 'bookings' ? (
         <View style={styles.composerCard}>
           <Text style={styles.composerTitle}>{editingPostId ? '编辑帖子' : '发布帖子'}</Text>
           <TextInput
@@ -343,6 +477,80 @@ const CommunityScreen = ({ navigation }: any) => {
         </View>
       ) : null}
 
+      {showComposer && activeTab === 'bookings' ? (
+        <View style={styles.composerCard}>
+          <Text style={styles.composerTitle}>创建预约</Text>
+          <View style={styles.bookingTypeRow}>
+            {[
+              ['hospital', '医院问诊'],
+              ['grooming', '洗护美容'],
+              ['boarding', '寄养托管'],
+              ['other', '其他服务'],
+            ].map(([value, label]) => (
+              <TouchableOpacity
+                key={value}
+                style={[styles.bookingTypeChip, bookingForm.serviceType === value && styles.bookingTypeChipActive]}
+                onPress={() => setBookingForm((prev) => ({ ...prev, serviceType: value }))}
+              >
+                <Text style={[styles.bookingTypeChipText, bookingForm.serviceType === value && styles.bookingTypeChipTextActive]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TextInput
+            style={styles.titleInput}
+            value={bookingForm.serviceName}
+            onChangeText={(serviceName) => setBookingForm((prev) => ({ ...prev, serviceName }))}
+            placeholder="服务名称，例如某某宠物医院"
+          />
+          <TextInput
+            style={styles.titleInput}
+            value={bookingForm.serviceAddress}
+            onChangeText={(serviceAddress) => setBookingForm((prev) => ({ ...prev, serviceAddress }))}
+            placeholder="服务地址"
+          />
+          <View style={styles.bookingDateRow}>
+            <TextInput
+              style={[styles.titleInput, styles.bookingDateInput]}
+              value={bookingForm.bookingDate}
+              onChangeText={(bookingDate) => setBookingForm((prev) => ({ ...prev, bookingDate }))}
+              placeholder="YYYY-MM-DD"
+            />
+            <TextInput
+              style={[styles.titleInput, styles.bookingDateInput]}
+              value={bookingForm.bookingTime}
+              onChangeText={(bookingTime) => setBookingForm((prev) => ({ ...prev, bookingTime }))}
+              placeholder="HH:mm"
+            />
+          </View>
+          <TextInput
+            style={styles.contentInput}
+            value={bookingForm.notes}
+            onChangeText={(notes) => setBookingForm((prev) => ({ ...prev, notes }))}
+            placeholder="补充预约说明，例如疫苗复查、体检咨询、洗护需求等"
+            multiline
+            numberOfLines={4}
+          />
+          <View style={styles.composerActions}>
+            <TouchableOpacity
+              style={[styles.secondaryButton, submitting && styles.disabledButton]}
+              disabled={submitting}
+              onPress={resetComposer}
+            >
+              <Text style={styles.secondaryButtonText}>取消</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.primaryButton, submitting && styles.disabledButton]}
+              disabled={submitting}
+              onPress={handleCreateBooking}
+            >
+              <Text style={styles.primaryButtonText}>{submitting ? '提交中...' : '创建预约'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
         {loading ? (
           <View style={styles.loadingState}>
@@ -350,6 +558,8 @@ const CommunityScreen = ({ navigation }: any) => {
           </View>
         ) : visibleList.length === 0 ? (
           renderEmptyState()
+        ) : activeTab === 'bookings' ? (
+          visibleList.map((booking) => renderBookingCard(booking))
         ) : activeTab === 'comments' ? (
           visibleList.map((comment) => renderCommentCard(comment))
         ) : (
@@ -377,6 +587,9 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
+  },
+  headerSpacer: {
+    width: 40,
   },
   backButtonText: {
     color: '#fff',
@@ -439,6 +652,29 @@ const styles = StyleSheet.create({
     color: '#243029',
     marginBottom: 12,
   },
+  bookingTypeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 12,
+  },
+  bookingTypeChip: {
+    backgroundColor: '#edf2ee',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  bookingTypeChipActive: {
+    backgroundColor: '#d4ead9',
+  },
+  bookingTypeChipText: {
+    color: '#54655b',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  bookingTypeChipTextActive: {
+    color: '#245b38',
+  },
   titleInput: {
     backgroundColor: '#f5f5f5',
     borderRadius: 10,
@@ -446,6 +682,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 12,
     fontSize: 16,
+  },
+  bookingDateRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  bookingDateInput: {
+    flex: 1,
   },
   contentInput: {
     backgroundColor: '#f5f5f5',
@@ -618,6 +861,55 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: '#809087',
     fontSize: 12,
+  },
+  bookingCard: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
+  },
+  bookingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  bookingTitleWrap: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  bookingTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#243029',
+    marginBottom: 4,
+  },
+  bookingType: {
+    fontSize: 12,
+    color: '#6f7f76',
+  },
+  bookingStatusBadge: {
+    backgroundColor: '#e6f4ea',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  bookingStatusBadgeCancelled: {
+    backgroundColor: '#f8ecea',
+  },
+  bookingStatusText: {
+    color: '#277245',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  bookingStatusTextCancelled: {
+    color: '#b05d50',
+  },
+  bookingMeta: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: '#596a61',
+    marginBottom: 4,
   },
 });
 

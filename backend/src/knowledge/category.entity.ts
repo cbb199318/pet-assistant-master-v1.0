@@ -9,8 +9,8 @@ export class Category {
   @Column()
   name: string;
 
-  @Column({ nullable: true })
-  description: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  description: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;

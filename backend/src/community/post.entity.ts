@@ -16,7 +16,7 @@ export class Post {
   @Column()
   content: string;
 
-  @Column({ type: 'json', nullable: true })
+  @Column({ type: 'simple-json', nullable: true })
   images: string[];
 
   @Column({ default: 0 })
@@ -24,6 +24,9 @@ export class Post {
 
   @Column({ default: 0 })
   comments: number;
+
+  @Column({ type: 'varchar', length: 20, default: 'approved' })
+  status: string;
 
   @ManyToOne(() => User, user => user.posts)
   user: User;

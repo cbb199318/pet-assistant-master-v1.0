@@ -17,16 +17,21 @@ const AddCareScreen = () => {
   const { pet_id } = route.params as { pet_id: number };
   const care = route.params?.care;
   const isEdit = Boolean(care);
+  const initialMode = route.params?.initialMode || care?.mode || 'record';
 
   const [type, setType] = useState(care?.type || 'feeding');
   const [description, setDescription] = useState(care?.description || '');
+  const [mode, setMode] = useState(initialMode);
   const [date, setDate] = useState(
     care?.date ? new Date(care.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
   );
   const [time, setTime] = useState(care?.time || new Date().toTimeString().split(' ')[0].substring(0, 5));
+  const [reminderTime, setReminderTime] = useState(care?.reminder_time || '');
+  const [repeatPattern, setRepeatPattern] = useState(care?.repeat_pattern || 'daily');
   const [duration, setDuration] = useState(care?.duration ? String(care.duration) : '');
   const [quantity, setQuantity] = useState(care?.quantity || '');
   const [notes, setNotes] = useState(care?.notes || '');
+  const [isCompleted, setIsCompleted] = useState(Boolean(care?.is_completed));
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState({
     visible: false,
@@ -41,6 +46,13 @@ const AddCareScreen = () => {
     { value: 'bathing', label: '洗澡' },
     { value: 'play', label: '玩耍' },
     { value: 'other', label: '其他' },
+  ];
+
+  const repeatOptions = [
+    { value: 'daily', label: '每天' },
+    { value: 'weekdays', label: '工作日' },
+    { value: 'weekly', label: '每周' },
+    { value: 'custom', label: '自定义' },
   ];
 
   const showFeedback = (type: 'success' | 'error' | 'loading', message: string) => {
@@ -58,11 +70,15 @@ const AddCareScreen = () => {
       const payload = {
         type,
         description,
+        mode,
         date,
         time,
+        reminder_time: mode === 'plan' ? reminderTime || time || undefined : undefined,
+        repeat_pattern: mode === 'plan' ? repeatPattern : undefined,
         duration: duration ? parseInt(duration) : undefined,
         quantity: quantity || undefined,
         notes,
+        is_completed: mode === 'plan' ? isCompleted : false,
         pet_id,
       };
       if (isEdit) {
@@ -85,10 +101,43 @@ const AddCareScreen = () => {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonText}>← 返回</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>{isEdit ? '编辑护理记录' : '添加护理记录'}</Text>
+        <View style={styles.headerPlaceholder} />
       </View>
 
       <View style={styles.form}>
+        <View style={styles.tipCard}>
+          <Text style={styles.tipTitle}>高频护理建议用计划模式</Text>
+          <Text style={styles.tipText}>
+            喂食、遛狗等每天重复的事项可以建立计划，减少重复录入；单次完成记录再用普通记录模式。
+          </Text>
+        </View>
+
+        <View style={styles.formGroup}>
+          <Text style={styles.label}>录入模式</Text>
+          <View style={styles.modeRow}>
+            <TouchableOpacity
+              style={[styles.modeButton, mode === 'record' && styles.modeButtonActive]}
+              onPress={() => setMode('record')}
+            >
+              <Text style={[styles.modeButtonText, mode === 'record' && styles.modeButtonTextActive]}>
+                单次记录
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeButton, mode === 'plan' && styles.modeButtonActive]}
+              onPress={() => setMode('plan')}
+            >
+              <Text style={[styles.modeButtonText, mode === 'plan' && styles.modeButtonTextActive]}>
+                定时计划
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.formGroup}>
           <Text style={styles.label}>护理类型</Text>
           <View style={styles.typeContainer}>
@@ -117,7 +166,7 @@ const AddCareScreen = () => {
         </View>
 
         <View style={styles.formGroup}>
-          <Text style={styles.label}>日期</Text>
+          <Text style={styles.label}>{mode === 'plan' ? '计划开始日期' : '日期'}</Text>
           <TextInput
             style={styles.input}
             value={date}
@@ -127,7 +176,7 @@ const AddCareScreen = () => {
         </View>
 
         <View style={styles.formGroup}>
-          <Text style={styles.label}>时间</Text>
+          <Text style={styles.label}>{mode === 'plan' ? '执行时间' : '时间'}</Text>
           <TextInput
             style={styles.input}
             value={time}
@@ -135,6 +184,69 @@ const AddCareScreen = () => {
             placeholder="HH:MM"
           />
         </View>
+
+        {mode === 'plan' ? (
+          <>
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>提醒时间</Text>
+              <TextInput
+                style={styles.input}
+                value={reminderTime}
+                onChangeText={setReminderTime}
+                placeholder="HH:MM，可与执行时间一致"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>重复规则</Text>
+              <View style={styles.typeContainer}>
+                {repeatOptions.map((item) => (
+                  <TouchableOpacity
+                    key={item.value}
+                    style={[
+                      styles.typeOption,
+                      repeatPattern === item.value && styles.typeOptionActive,
+                    ]}
+                    onPress={() => setRepeatPattern(item.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.typeOptionText,
+                        repeatPattern === item.value && styles.typeOptionTextActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {isEdit ? (
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>计划状态</Text>
+                <View style={styles.modeRow}>
+                  <TouchableOpacity
+                    style={[styles.modeButton, !isCompleted && styles.modeButtonActive]}
+                    onPress={() => setIsCompleted(false)}
+                  >
+                    <Text style={[styles.modeButtonText, !isCompleted && styles.modeButtonTextActive]}>
+                      进行中
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modeButton, isCompleted && styles.modeButtonActive]}
+                    onPress={() => setIsCompleted(true)}
+                  >
+                    <Text style={[styles.modeButtonText, isCompleted && styles.modeButtonTextActive]}>
+                      已完成
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
+          </>
+        ) : null}
 
         <View style={styles.formGroup}>
           <Text style={styles.label}>持续时间（分钟）</Text>
@@ -195,16 +307,49 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4CAF50',
-    padding: 20,
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
+  backButton: {
+    paddingVertical: 8,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  headerPlaceholder: {
+    width: 56,
+  },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
   },
   form: {
     padding: 20,
+  },
+  tipCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  tipTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#243029',
+    marginBottom: 6,
+  },
+  tipText: {
+    fontSize: 13,
+    color: '#617168',
+    lineHeight: 20,
   },
   formGroup: {
     marginBottom: 20,
@@ -230,6 +375,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modeButton: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#d8e2db',
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modeButtonActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  modeButtonText: {
+    color: '#4d5a54',
+    fontWeight: '600',
+  },
+  modeButtonTextActive: {
+    color: '#fff',
   },
   typeOption: {
     backgroundColor: '#fff',

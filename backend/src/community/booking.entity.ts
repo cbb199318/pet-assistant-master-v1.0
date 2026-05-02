@@ -24,8 +24,8 @@ export class Booking {
   @Column({ default: 'pending' })
   status: string; // 状态：pending, confirmed, completed, cancelled
 
-  @Column({ nullable: true })
-  notes: string;
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
 
   @ManyToOne(() => User, user => user.bookings)
   user: User;

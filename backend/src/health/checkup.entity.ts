@@ -33,6 +33,9 @@ export class Checkup {
   @Column({ type: 'text', nullable: true })
   recommendations: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  record_image_url: string;
+
   @CreateDateColumn()
   created_at: Date;
 }

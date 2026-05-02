@@ -6,13 +6,14 @@ import { Checkup } from './checkup.entity';
 import { HealthService } from './health.service';
 import { HealthController } from './health.controller';
 import { PetModule } from '../pets/pet.module';
+import { QwenVisionProvider } from '../ai/providers/qwen-vision.provider';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Vaccination, Deworming, Checkup]),
     PetModule,
   ],
-  providers: [HealthService],
+  providers: [HealthService, QwenVisionProvider],
   controllers: [HealthController],
   exports: [HealthService],
 })

@@ -40,6 +40,7 @@ export class CommunityService {
 
   async getPosts(limit: number = 10, offset: number = 0): Promise<Post[]> {
     return this.postRepository.find({
+      where: { status: 'approved' },
       relations: ['user'],
       order: { created_at: 'DESC' },
       take: limit,
@@ -57,7 +58,7 @@ export class CommunityService {
 
   async getPostById(id: number): Promise<Post> {
     const post = await this.postRepository.findOne({
-      where: { id },
+      where: { id, status: 'approved' },
       relations: ['user', 'commentList', 'commentList.user'],
     });
     if (!post) {
@@ -133,7 +134,7 @@ export class CommunityService {
 
   async getCommentsByPostId(postId: number): Promise<Comment[]> {
     return this.commentRepository.find({
-      where: { post: { id: postId } },
+      where: { post: { id: postId }, status: 'approved' },
       relations: ['user'],
       order: { created_at: 'ASC' },
     });

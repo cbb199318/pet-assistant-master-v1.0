@@ -39,6 +39,13 @@ const welcomeMessage: AiConversationMessage = {
     '你好，我是你的宠物助手。你可以直接问我宠物健康、护理、饮食和行为问题，也可以上传图片或录一段语音让我帮你识别。',
 };
 
+const SHORTCUT_PROMPTS = [
+  '帮我看看最近疫苗还需要补什么',
+  '驱虫应该多久做一次更合适',
+  '今天喂食量怎么安排比较稳妥',
+  '宠物精神不好要先观察什么症状',
+];
+
 const MIN_AUDIO_FILE_SIZE = 1024;
 
 const getAudioFileExtension = (mimeType: string) => {
@@ -53,6 +60,9 @@ const getAudioFileExtension = (mimeType: string) => {
   }
   return '.webm';
 };
+
+const isFallbackMessage = (content?: string) =>
+  Boolean(content && /(暂未配置|无法提供|稍后再试)/.test(content));
 
 const AiAssistantScreen = () => {
   const navigation = useNavigation();
@@ -182,6 +192,14 @@ const AiAssistantScreen = () => {
     setPendingAudio(null);
     setShowAttachmentMenu(false);
     setInputMode('text');
+  };
+
+  const handleShortcutPress = (prompt: string) => {
+    setPendingImage(null);
+    setPendingAudio(null);
+    setInputMode('text');
+    setInputText(prompt);
+    setShowAttachmentMenu(false);
   };
 
   const toggleInputMode = () => {
@@ -617,6 +635,9 @@ const AiAssistantScreen = () => {
         >
           {item.content}
         </Text>
+        {item.role === 'assistant' && isFallbackMessage(item.content) ? (
+          <Text style={styles.messageHintText}>可先体验快捷问题、图片上传与语音播报界面，配置外部 Key 后即可返回真实 AI 结果。</Text>
+        ) : null}
         {item.role === 'assistant' && ttsAudioUrl ? (
           <TouchableOpacity
             style={styles.ttsPlayButton}
@@ -780,6 +801,29 @@ const AiAssistantScreen = () => {
             </TouchableOpacity>
           ))}
         </ScrollView>
+      </View>
+
+      <View style={styles.shortcutSection}>
+        <Text style={styles.shortcutTitle}>快捷提问</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.shortcutList}
+        >
+          {SHORTCUT_PROMPTS.map((prompt) => (
+            <TouchableOpacity
+              key={prompt}
+              style={styles.shortcutChip}
+              onPress={() => handleShortcutPress(prompt)}
+            >
+              <Text style={styles.shortcutChipText}>{prompt}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        <View style={styles.noticeCard}>
+          <Text style={styles.noticeTitle}>服务说明</Text>
+          <Text style={styles.noticeText}>已支持文字问答、图片识别、语音输入和语音播报。若后端未配置外部 AI Key，页面会直接提示原因，方便演示与排查。</Text>
+        </View>
       </View>
 
       <FlatList
@@ -1184,6 +1228,59 @@ const styles = StyleSheet.create({
   petChipMetaTextActive: {
     color: '#4d715c',
   },
+  shortcutSection: {
+    backgroundColor: '#fff',
+    paddingTop: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#edf1ee',
+  },
+  shortcutTitle: {
+    paddingHorizontal: 16,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#294236',
+    marginBottom: 10,
+  },
+  shortcutList: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  shortcutChip: {
+    maxWidth: 220,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    backgroundColor: '#edf6ef',
+    borderWidth: 1,
+    borderColor: '#dbe9de',
+  },
+  shortcutChipText: {
+    color: '#315347',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  noticeCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 14,
+    backgroundColor: '#f7fbf8',
+    borderWidth: 1,
+    borderColor: '#e1ebe4',
+    padding: 12,
+  },
+  noticeTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#294236',
+    marginBottom: 6,
+  },
+  noticeText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#617169',
+  },
   messagesList: {
     flexGrow: 1,
     padding: 12,
@@ -1257,6 +1354,12 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 15,
     lineHeight: 22,
+  },
+  messageHintText: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#6b7c73',
   },
   userMessageText: {
     color: '#1976D2',

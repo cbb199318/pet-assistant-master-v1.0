@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-nativ
 import { Feedback } from '../components/Feedback';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useForm, Controller } from 'react-hook-form';
-import { authApi, getApiDiagnostics, getApiErrorMessage } from '../services/api';
+import { authApi, getApiErrorMessage } from '../services/api';
 
 interface LoginFormData {
   phone: string;
@@ -12,14 +12,12 @@ interface LoginFormData {
 
 const LoginScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(false);
-  const [debugError, setDebugError] = useState('');
   const [feedback, setFeedback] = useState({
     visible: false,
     type: 'success' as 'success' | 'error' | 'loading',
     message: '',
   });
   const { control, handleSubmit, formState: { errors } } = useForm<LoginFormData>();
-  const apiDiagnostics = getApiDiagnostics();
 
   const showFeedback = (type: 'success' | 'error' | 'loading', message: string) => {
     setFeedback({ visible: true, type, message });
@@ -32,34 +30,15 @@ const LoginScreen = ({ navigation }: any) => {
   const onSubmit = async (data: LoginFormData) => {
     showFeedback('loading', '登录中...');
     setLoading(true);
-    setDebugError('');
     try {
       const response = await authApi.login(data);
       showFeedback('success', '登录成功，欢迎回来！');
       await AsyncStorage.setItem('token', response.token);
       await AsyncStorage.setItem('user', JSON.stringify(response.user));
       setTimeout(() => {
-        navigation.navigate('Home');
+        navigation.navigate('MainTabs');
       }, 1000);
     } catch (error: any) {
-      const errorSummary = [
-        `message: ${error?.message || 'unknown'}`,
-        `code: ${error?.code || ''}`,
-        `status: ${error?.response?.status || ''}`,
-        `response: ${
-          typeof error?.response?.data === 'string'
-            ? error.response.data
-            : JSON.stringify(error?.response?.data || {})
-        }`,
-      ].join('\n');
-      setDebugError(errorSummary);
-      console.log('[login-debug]', {
-        apiDiagnostics,
-        errorMessage: error?.message,
-        errorCode: error?.code,
-        responseStatus: error?.response?.status,
-        responseData: error?.response?.data,
-      });
       showFeedback('error', getApiErrorMessage(error, '手机号或密码错误'));
     } finally {
       setLoading(false);
@@ -126,21 +105,6 @@ const LoginScreen = ({ navigation }: any) => {
         >
           <Text style={styles.registerText}>还没有账号？立即注册</Text>
         </TouchableOpacity>
-
-        {__DEV__ ? (
-          <View style={styles.debugCard}>
-            <Text style={styles.debugTitle}>调试信息</Text>
-            <Text style={styles.debugText}>API_BASE_URL: {apiDiagnostics.apiBaseUrl}</Text>
-            <Text style={styles.debugText}>expoConfig.hostUri: {apiDiagnostics.expoConfigHostUri || '-'}</Text>
-            <Text style={styles.debugText}>experienceUrl: {apiDiagnostics.experienceUrl || '-'}</Text>
-            <Text style={styles.debugText}>linkingUri: {apiDiagnostics.linkingUri || '-'}</Text>
-            <Text style={styles.debugText}>platform.hostUri: {apiDiagnostics.platformHostUri || '-'}</Text>
-            <Text style={styles.debugText}>debuggerHost: {apiDiagnostics.expoDebuggerHost || '-'}</Text>
-            <Text style={styles.debugText}>scriptURL: {apiDiagnostics.sourceCodeScriptURL || '-'}</Text>
-            <Text style={styles.debugText}>ServerHost: {apiDiagnostics.platformServerHost || '-'}</Text>
-            {debugError ? <Text style={styles.debugErrorText}>{debugError}</Text> : null}
-          </View>
-        ) : null}
       </View>
       <Feedback
         visible={feedback.visible}
@@ -213,31 +177,6 @@ const styles = StyleSheet.create({
   registerText: {
     color: '#4CAF50',
     fontSize: 14,
-  },
-  debugCard: {
-    marginTop: 24,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#eef5ff',
-    borderWidth: 1,
-    borderColor: '#c8daf5',
-  },
-  debugTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#27496d',
-    marginBottom: 8,
-  },
-  debugText: {
-    fontSize: 12,
-    color: '#355c7d',
-    marginBottom: 4,
-  },
-  debugErrorText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#b42318',
-    lineHeight: 18,
   },
 });
 

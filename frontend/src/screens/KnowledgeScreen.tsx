@@ -17,20 +17,24 @@ const KnowledgeScreen = ({ navigation }: any) => {
   const [categories, setCategories] = useState<any[]>([]);
   const [articles, setArticles] = useState<any[]>([]);
   const [recommendedArticles, setRecommendedArticles] = useState<any[]>([]);
+  const [recommendedProducts, setRecommendedProducts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | number>('all');
   const [loading, setLoading] = useState(true);
+  const canGoBack = navigation.canGoBack();
 
   const loadBaseData = async () => {
     try {
-      const [categoryData, articleData, recommendedData] = await Promise.all([
+      const [categoryData, articleData, recommendedData, productData] = await Promise.all([
         knowledgeApi.getCategories(),
         knowledgeApi.getArticles({ limit: 30, offset: 0 }),
         knowledgeApi.getRecommendedArticles({ limit: 6 }),
+        knowledgeApi.getRecommendedProducts({ limit: 6 }),
       ]);
       setCategories(categoryData);
       setArticles(articleData);
       setRecommendedArticles(recommendedData);
+      setRecommendedProducts(productData);
     } catch (error: any) {
       Alert.alert('错误', getApiErrorMessage(error, '获取知识内容失败'));
     } finally {
@@ -118,11 +122,15 @@ const KnowledgeScreen = ({ navigation }: any) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
+        {canGoBack ? (
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
         <Text style={styles.title}>知识百科</Text>
-        <View style={{ width: 40 }} />
+        <View style={styles.headerSpacer} />
       </View>
 
       <View style={styles.searchContainer}>
@@ -145,6 +153,48 @@ const KnowledgeScreen = ({ navigation }: any) => {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {recommendedArticles.map((article) => renderArticleCard(article, true))}
           </ScrollView>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>用品推荐与护理要点</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {recommendedProducts.length === 0 ? (
+              <View style={styles.productCard}>
+                <Text style={styles.productTitle}>推荐内容筹备中</Text>
+                <Text style={styles.productDescription}>后台发布推荐用品后，这里会自动展示推荐理由和护理建议。</Text>
+              </View>
+            ) : (
+              recommendedProducts.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.productCard}
+                  activeOpacity={0.9}
+                  onPress={() => navigation.navigate('ArticleDetail', { articleId: item.id })}
+                >
+                  <Text style={styles.productTitle}>{item.title}</Text>
+                  <Text style={styles.productDescription}>
+                    {item.recommendation_reason || item.content || '点击查看推荐详情'}
+                  </Text>
+                  <Text style={styles.productMeta}>{item.category?.name || '用品推荐'}</Text>
+                </TouchableOpacity>
+              ))
+            )}
+          </ScrollView>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.communityCard}>
+            <Text style={styles.communityTitle}>经验交流</Text>
+            <Text style={styles.communityDescription}>
+              去社区看看别人的喂养经验、医院建议和用品心得，内容会更全面。
+            </Text>
+            <TouchableOpacity
+              style={styles.communityButton}
+              onPress={() => navigation.navigate('CommunityTab')}
+            >
+              <Text style={styles.communityButtonText}>进入交流社区</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -238,6 +288,9 @@ const styles = StyleSheet.create({
   backButton: {
     padding: 10,
   },
+  headerSpacer: {
+    width: 40,
+  },
   backButtonText: {
     color: '#fff',
     fontSize: 24,
@@ -305,6 +358,69 @@ const styles = StyleSheet.create({
     color: '#243029',
     padding: 12,
     lineHeight: 20,
+  },
+  productCard: {
+    width: 220,
+    marginLeft: 16,
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3.84,
+    elevation: 4,
+  },
+  productTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#243029',
+    marginBottom: 10,
+  },
+  productDescription: {
+    fontSize: 13,
+    color: '#64736b',
+    lineHeight: 20,
+  },
+  productMeta: {
+    marginTop: 10,
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  communityCard: {
+    marginHorizontal: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3.84,
+    elevation: 4,
+  },
+  communityTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#243029',
+    marginBottom: 8,
+  },
+  communityDescription: {
+    fontSize: 14,
+    color: '#64736b',
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  communityButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#4CAF50',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  communityButtonText: {
+    color: '#fff',
+    fontWeight: '700',
   },
   categoryButton: {
     marginLeft: 16,

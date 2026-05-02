@@ -72,6 +72,10 @@ export const adminApi = {
     const response = await client.get('/api/admin/dashboard/overview');
     return response.data;
   },
+  getDashboardTrends: async () => {
+    const response = await client.get('/api/admin/dashboard/trends');
+    return response.data;
+  },
   getUsers: async (params) => {
     const response = await client.get('/api/admin/users', { params });
     return response.data;
@@ -96,6 +100,10 @@ export const adminApi = {
     const response = await client.delete(`/api/admin/content/posts/${id}`);
     return response.data;
   },
+  updatePostStatus: async (id, status) => {
+    const response = await client.put(`/api/admin/content/posts/${id}/status`, { status });
+    return response.data;
+  },
   getComments: async (params) => {
     const response = await client.get('/api/admin/content/comments', { params });
     return response.data;
@@ -106,6 +114,10 @@ export const adminApi = {
   },
   deleteComment: async (id) => {
     const response = await client.delete(`/api/admin/content/comments/${id}`);
+    return response.data;
+  },
+  updateCommentStatus: async (id, status) => {
+    const response = await client.put(`/api/admin/content/comments/${id}/status`, { status });
     return response.data;
   },
   getCategories: async (params) => {
@@ -146,6 +158,18 @@ export const adminApi = {
   },
   deleteArticle: async (id) => {
     const response = await client.delete(`/api/admin/content/articles/${id}`);
+    return response.data;
+  },
+  getSystemSettings: async () => {
+    const response = await client.get('/api/admin/system/settings');
+    return response.data;
+  },
+  updateSystemSetting: async (key, payload) => {
+    const response = await client.put(`/api/admin/system/settings/${key}`, payload);
+    return response.data;
+  },
+  getAuditLogs: async (params) => {
+    const response = await client.get('/api/admin/audit-logs', { params });
     return response.data;
   },
   getErrorMessage: unwrapMessage,

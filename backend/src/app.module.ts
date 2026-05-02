@@ -11,7 +11,10 @@ import { AiModule } from './ai/ai.module';
 import { CommunityModule } from './community/community.module';
 import { KnowledgeModule } from './knowledge/knowledge.module';
 import { AdminModule } from './admin/admin.module';
+import { DemoModule } from './demo/demo.module';
 import { AdminUser } from './admin/admin-user.entity';
+import { AdminAuditLog } from './admin/admin-audit-log.entity';
+import { SystemSetting } from './admin/system-setting.entity';
 import { AiConversation } from './ai/ai-conversation.entity';
 import { User } from './users/user.entity';
 import { Pet } from './pets/pet.entity';
@@ -30,6 +33,8 @@ dotenv.config();
 
 const entities = [
   AdminUser,
+  AdminAuditLog,
+  SystemSetting,
   AiConversation,
   User,
   Pet,
@@ -77,6 +82,7 @@ const databaseConfig =
     CommunityModule,
     KnowledgeModule,
     AdminModule,
+    DemoModule,
   ],
   controllers: [AppController],
   providers: [AppService],

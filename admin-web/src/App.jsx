@@ -10,6 +10,7 @@ const overviewLabels = [
   ['totalCares', '护理记录'],
   ['totalPosts', '社区帖子'],
   ['totalComments', '社区评论'],
+  ['totalBookings', '社区预约'],
   ['totalArticles', '知识文章'],
   ['totalCategories', '知识分类'],
 ];
@@ -52,6 +53,20 @@ const tabs = [
     title: '知识文章',
     placeholder: '按标题、正文、分类搜索',
   },
+  {
+    key: 'settings',
+    label: '系统配置',
+    eyebrow: '系统配置',
+    title: '配置项',
+    placeholder: '按 key、标签或说明搜索',
+  },
+  {
+    key: 'auditLogs',
+    label: '审计日志',
+    eyebrow: '操作留痕',
+    title: '管理员审计日志',
+    placeholder: '按管理员、动作或资源搜索',
+  },
 ];
 
 const listLoaders = {
@@ -60,6 +75,11 @@ const listLoaders = {
   comments: adminApi.getComments,
   categories: adminApi.getCategories,
   articles: adminApi.getArticles,
+  settings: async () => {
+    const items = await adminApi.getSystemSettings();
+    return { items, total: items.length };
+  },
+  auditLogs: adminApi.getAuditLogs,
 };
 
 const detailLoaders = {
@@ -69,6 +89,14 @@ const detailLoaders = {
   categories: adminApi.getCategoryDetail,
   articles: adminApi.getArticleDetail,
 };
+
+const trendMetrics = [
+  ['users', '用户新增'],
+  ['pets', '宠物新增'],
+  ['posts', '帖子新增'],
+  ['bookings', '预约新增'],
+  ['articles', '文章新增'],
+];
 
 function LoginView({ loading, error, onSubmit }) {
   const [form, setForm] = useState({
@@ -269,7 +297,52 @@ function ArticleModal({
             <input
               value={form.cover_image}
               onChange={(event) => onChange('cover_image', event.target.value)}
-              placeholder="https://example.com/cover.jpg"
+              placeholder="/uploads/article-cover.jpg"
+            />
+          </label>
+          <label>
+            <span>内容类型</span>
+            <select
+              value={form.kind}
+              onChange={(event) => onChange('kind', event.target.value)}
+            >
+              <option value="knowledge">知识文章</option>
+              <option value="product">用品推荐</option>
+            </select>
+          </label>
+          <label>
+            <span>发布状态</span>
+            <select
+              value={form.status}
+              onChange={(event) => onChange('status', event.target.value)}
+            >
+              <option value="published">已发布</option>
+              <option value="draft">草稿</option>
+              <option value="archived">已下架</option>
+            </select>
+          </label>
+          <label>
+            <span>推荐权重</span>
+            <input
+              value={form.sort_order}
+              onChange={(event) => onChange('sort_order', event.target.value)}
+              placeholder="0"
+            />
+          </label>
+          <label>
+            <span>推荐理由</span>
+            <input
+              value={form.recommendation_reason}
+              onChange={(event) => onChange('recommendation_reason', event.target.value)}
+              placeholder="写给前台用户看的推荐理由"
+            />
+          </label>
+          <label className="checkbox-field">
+            <span>推荐位展示</span>
+            <input
+              type="checkbox"
+              checked={Boolean(form.is_recommended)}
+              onChange={(event) => onChange('is_recommended', event.target.checked)}
             />
           </label>
           <label>
@@ -302,6 +375,7 @@ function App() {
   const [authError, setAuthError] = useState('');
   const [admin, setAdmin] = useState(null);
   const [overview, setOverview] = useState(emptyOverview);
+  const [trends, setTrends] = useState(null);
   const [activeTab, setActiveTab] = useState('users');
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -328,13 +402,38 @@ function App() {
     content: '',
     cover_image: '',
     categoryId: '',
+    status: 'published',
+    kind: 'knowledge',
+    is_recommended: false,
+    sort_order: '0',
+    recommendation_reason: '',
   });
   const [categoryOptions, setCategoryOptions] = useState([]);
+  const [auditFilters, setAuditFilters] = useState({
+    admin_username: '',
+    action: '',
+    resource_type: '',
+  });
   const pageSize = 10;
 
+  const isSuperAdmin = admin?.role === 'super_admin';
+  const visibleTabs = useMemo(
+    () =>
+      tabs.filter((tab) => {
+        if (!admin) {
+          return true;
+        }
+        if (!isSuperAdmin && ['users', 'settings'].includes(tab.key)) {
+          return false;
+        }
+        return true;
+      }),
+    [admin, isSuperAdmin],
+  );
+
   const activeTabMeta = useMemo(
-    () => tabs.find((tab) => tab.key === activeTab) || tabs[0],
-    [activeTab],
+    () => visibleTabs.find((tab) => tab.key === activeTab) || visibleTabs[0] || tabs[0],
+    [activeTab, visibleTabs],
   );
 
   const totalPages = useMemo(
@@ -361,17 +460,43 @@ function App() {
   };
 
   const loadOverview = async () => {
-    const overviewData = await adminApi.getOverview();
+    const [overviewData, trendData] = await Promise.all([
+      adminApi.getOverview(),
+      adminApi.getDashboardTrends(),
+    ]);
     setOverview(overviewData);
+    setTrends(trendData);
   };
 
   const loadList = async (tab = activeTab, nextPage = page, nextKeyword = keyword) => {
     const loader = listLoaders[tab];
-    const response = await loader({
-      keyword: nextKeyword,
-      page: nextPage,
-      pageSize,
-    });
+    const response = await loader(
+      tab === 'auditLogs'
+        ? {
+            keyword: nextKeyword,
+            page: nextPage,
+            pageSize,
+            ...auditFilters,
+          }
+        : {
+            keyword: nextKeyword,
+            page: nextPage,
+            pageSize,
+          },
+    );
+
+    if (tab === 'settings') {
+      const items = (response.items || []).filter((item) => {
+        if (!nextKeyword) {
+          return true;
+        }
+        const target = `${item.key || ''} ${item.label || ''} ${item.description || ''}`.toLowerCase();
+        return target.includes(nextKeyword.toLowerCase());
+      });
+      setRows(items);
+      setTotal(items.length);
+      return;
+    }
 
     setRows(response.items || []);
     setTotal(response.total || 0);
@@ -418,6 +543,16 @@ function App() {
       return;
     }
 
+    if (!visibleTabs.some((tab) => tab.key === activeTab)) {
+      setActiveTab(visibleTabs[0]?.key || 'posts');
+    }
+  }, [activeTab, admin, visibleTabs]);
+
+  useEffect(() => {
+    if (!admin) {
+      return;
+    }
+
     setListLoading(true);
     refreshCurrentView()
       .catch((error) => {
@@ -426,7 +561,7 @@ function App() {
       .finally(() => {
         setListLoading(false);
       });
-  }, [admin, activeTab, keyword, page]);
+  }, [admin, activeTab, keyword, page, auditFilters]);
 
   const handleLogin = async (form) => {
     setAuthLoading(true);
@@ -449,6 +584,7 @@ function App() {
     setDetailType('');
     setDetailData(null);
     setOverview(emptyOverview);
+    setTrends(null);
   };
 
   const handleTabChange = (tab) => {
@@ -458,6 +594,11 @@ function App() {
     setPage(1);
     setDetailType('');
     setDetailData(null);
+    setAuditFilters({
+      admin_username: '',
+      action: '',
+      resource_type: '',
+    });
   };
 
   const handleSearchSubmit = (event) => {
@@ -526,6 +667,36 @@ function App() {
     }
   };
 
+  const handleStatusUpdate = async (tab, item, status) => {
+    try {
+      if (tab === 'posts') {
+        await adminApi.updatePostStatus(item.id, status);
+      } else if (tab === 'comments') {
+        await adminApi.updateCommentStatus(item.id, status);
+      }
+      await refreshCurrentView(tab, page, keyword);
+      if (detailType === tab && detailData?.id === item.id) {
+        await loadDetail(tab, item.id);
+      }
+    } catch (error) {
+      window.alert(adminApi.getErrorMessage(error, '更新状态失败'));
+    }
+  };
+
+  const handleSettingUpdate = async (item) => {
+    const nextValue = window.prompt(`更新配置 ${item.label || item.key}`, item.value || '');
+    if (nextValue === null) {
+      return;
+    }
+
+    try {
+      await adminApi.updateSystemSetting(item.key, { value: nextValue });
+      await refreshCurrentView('settings', 1, keyword);
+    } catch (error) {
+      window.alert(adminApi.getErrorMessage(error, '更新配置失败'));
+    }
+  };
+
   const openCategoryModalForCreate = () => {
     setEditingCategoryId(null);
     setCategoryModalMode('create');
@@ -562,6 +733,11 @@ function App() {
         content: '',
         cover_image: '',
         categoryId: '',
+        status: 'published',
+        kind: 'knowledge',
+        is_recommended: false,
+        sort_order: '0',
+        recommendation_reason: '',
       });
       setArticleModalVisible(true);
     } catch (error) {
@@ -586,6 +762,11 @@ function App() {
         content: detail.content || '',
         cover_image: detail.cover_image || '',
         categoryId: detail.category?.id ? String(detail.category.id) : '',
+        status: detail.status || 'published',
+        kind: detail.kind || 'knowledge',
+        is_recommended: Boolean(detail.is_recommended),
+        sort_order: String(detail.sort_order ?? 0),
+        recommendation_reason: detail.recommendation_reason || '',
       });
       setArticleModalVisible(true);
     } catch (error) {
@@ -629,6 +810,11 @@ function App() {
       content: articleForm.content.trim(),
       cover_image: articleForm.cover_image.trim(),
       categoryId: Number(articleForm.categoryId),
+      status: articleForm.status,
+      kind: articleForm.kind,
+      is_recommended: Boolean(articleForm.is_recommended),
+      sort_order: Number(articleForm.sort_order) || 0,
+      recommendation_reason: articleForm.recommendation_reason.trim(),
     };
 
     if (!payload.title || !payload.content || !payload.categoryId) {
@@ -679,7 +865,7 @@ function App() {
         </div>
         <div className="topbar-actions">
           <div className="admin-chip">
-            <span>管理员</span>
+            <span>{admin.role === 'super_admin' ? '超级管理员' : '内容管理员'}</span>
             <strong>{admin.username}</strong>
           </div>
           <button className="ghost-button" onClick={handleLogout}>
@@ -698,9 +884,53 @@ function App() {
           ))}
         </section>
 
+        {trends ? (
+          <section className="trend-panel">
+            <div className="trend-panel-header">
+              <div>
+                <div className="eyebrow">运营概览</div>
+                <h2>近 7 天趋势与近 30 天汇总</h2>
+              </div>
+              <div className="trend-summary-inline">
+                <span>近 7 天帖子 {trends.recentActivity?.posts ?? 0}</span>
+                <span>评论 {trends.recentActivity?.comments ?? 0}</span>
+                <span>预约 {trends.recentActivity?.bookings ?? 0}</span>
+              </div>
+            </div>
+
+            <div className="trend-card-grid">
+              {trendMetrics.map(([metricKey, label]) => (
+                <article className="trend-card" key={metricKey}>
+                  <div className="trend-card-header">
+                    <strong>{label}</strong>
+                    <span>{`30 天 ${trends.last30Days?.totals?.[metricKey] ?? 0}`}</span>
+                  </div>
+                  <div className="trend-bars">
+                    {(trends.last7Days?.daily || []).map((point) => {
+                      const values = (trends.last7Days?.daily || []).map((item) => item[metricKey] || 0);
+                      const maxValue = Math.max(...values, 1);
+                      const height = `${Math.max(((point[metricKey] || 0) / maxValue) * 100, point[metricKey] ? 16 : 6)}%`;
+
+                      return (
+                        <div className="trend-bar-item" key={`${metricKey}-${point.date}`}>
+                          <div className="trend-bar-track">
+                            <div className="trend-bar-fill" style={{ height }} />
+                          </div>
+                          <span className="trend-bar-value">{point[metricKey] || 0}</span>
+                          <span className="trend-bar-label">{point.date.slice(5)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <section className="content-panel">
           <div className="tab-row">
-            {tabs.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab.key}
                 className={`tab-button ${activeTab === tab.key ? 'tab-button-active' : ''}`}
@@ -745,6 +975,32 @@ function App() {
             </div>
           </div>
 
+          {activeTab === 'auditLogs' ? (
+            <div className="filter-row">
+              <input
+                value={auditFilters.admin_username}
+                onChange={(event) =>
+                  setAuditFilters((prev) => ({ ...prev, admin_username: event.target.value }))
+                }
+                placeholder="按管理员筛选"
+              />
+              <input
+                value={auditFilters.action}
+                onChange={(event) =>
+                  setAuditFilters((prev) => ({ ...prev, action: event.target.value }))
+                }
+                placeholder="按动作筛选"
+              />
+              <input
+                value={auditFilters.resource_type}
+                onChange={(event) =>
+                  setAuditFilters((prev) => ({ ...prev, resource_type: event.target.value }))
+                }
+                placeholder="按资源类型筛选"
+              />
+            </div>
+          ) : null}
+
           <div className="table-shell">
             <table>
               <thead>{renderTableHead(activeTab)}</thead>
@@ -767,6 +1023,9 @@ function App() {
                     onDelete: (item) => handleDelete(activeTab, item),
                     onEditCategory: openCategoryModalForEdit,
                     onEditArticle: openArticleModalForEdit,
+                    onStatusChange: (item, status) => handleStatusUpdate(activeTab, item, status),
+                    onEditSetting: handleSettingUpdate,
+                    canDeleteDangerously: isSuperAdmin,
                   })
                 )}
               </tbody>
@@ -855,6 +1114,7 @@ function renderTableHead(activeTab) {
         <th>ID</th>
         <th>帖子标题</th>
         <th>作者</th>
+        <th>状态</th>
         <th>点赞</th>
         <th>评论</th>
         <th>发布时间</th>
@@ -870,8 +1130,33 @@ function renderTableHead(activeTab) {
         <th>评论内容</th>
         <th>所属帖子</th>
         <th>作者</th>
+        <th>状态</th>
         <th>发布时间</th>
         <th>操作</th>
+      </tr>
+    );
+  }
+
+  if (activeTab === 'settings') {
+    return (
+      <tr>
+        <th>分组</th>
+        <th>配置项</th>
+        <th>当前值</th>
+        <th>说明</th>
+        <th>操作</th>
+      </tr>
+    );
+  }
+
+  if (activeTab === 'auditLogs') {
+    return (
+      <tr>
+        <th>时间</th>
+        <th>管理员</th>
+        <th>动作</th>
+        <th>资源</th>
+        <th>详情</th>
       </tr>
     );
   }
@@ -894,6 +1179,7 @@ function renderTableHead(activeTab) {
       <th>ID</th>
       <th>文章标题</th>
       <th>所属分类</th>
+      <th>状态 / 类型</th>
       <th>浏览 / 点赞 / 收藏</th>
       <th>发布时间</th>
       <th>操作</th>
@@ -915,9 +1201,11 @@ function renderTableRows(activeTab, rows, handlers) {
             <button className="text-button" onClick={() => handlers.onView(user.id)}>
               查看
             </button>
-            <button className="danger-button" onClick={() => handlers.onDelete(user)}>
-              删除
-            </button>
+            {handlers.canDeleteDangerously ? (
+              <button className="danger-button" onClick={() => handlers.onDelete(user)}>
+                删除
+              </button>
+            ) : null}
           </div>
         </td>
       </tr>
@@ -933,6 +1221,7 @@ function renderTableRows(activeTab, rows, handlers) {
           <div className="table-subcopy">{truncateText(post.content, 48)}</div>
         </td>
         <td>{post.author?.nickname || post.author?.phone || '--'}</td>
+        <td>{post.status || 'approved'}</td>
         <td>{post.likes ?? 0}</td>
         <td>{post.comments ?? 0}</td>
         <td>{formatDate(post.created_at)}</td>
@@ -941,9 +1230,14 @@ function renderTableRows(activeTab, rows, handlers) {
             <button className="text-button" onClick={() => handlers.onView(post.id)}>
               查看
             </button>
-            <button className="danger-button" onClick={() => handlers.onDelete(post)}>
-              删除
+            <button className="ghost-button" onClick={() => handlers.onStatusChange(post, post.status === 'approved' ? 'hidden' : 'approved')}>
+              {post.status === 'approved' ? '下架' : '通过'}
             </button>
+            {handlers.canDeleteDangerously ? (
+              <button className="danger-button" onClick={() => handlers.onDelete(post)}>
+                删除
+              </button>
+            ) : null}
           </div>
         </td>
       </tr>
@@ -957,15 +1251,21 @@ function renderTableRows(activeTab, rows, handlers) {
         <td>{truncateText(comment.content, 42)}</td>
         <td>{comment.post?.title || '--'}</td>
         <td>{comment.author?.nickname || comment.author?.phone || '--'}</td>
+        <td>{comment.status || 'approved'}</td>
         <td>{formatDate(comment.created_at)}</td>
         <td>
           <div className="table-actions">
             <button className="text-button" onClick={() => handlers.onView(comment.id)}>
               查看
             </button>
-            <button className="danger-button" onClick={() => handlers.onDelete(comment)}>
-              删除
+            <button className="ghost-button" onClick={() => handlers.onStatusChange(comment, comment.status === 'approved' ? 'hidden' : 'approved')}>
+              {comment.status === 'approved' ? '下架' : '通过'}
             </button>
+            {handlers.canDeleteDangerously ? (
+              <button className="danger-button" onClick={() => handlers.onDelete(comment)}>
+                删除
+              </button>
+            ) : null}
           </div>
         </td>
       </tr>
@@ -991,11 +1291,46 @@ function renderTableRows(activeTab, rows, handlers) {
             >
               编辑
             </button>
-            <button className="danger-button" onClick={() => handlers.onDelete(category)}>
-              删除
+            {handlers.canDeleteDangerously ? (
+              <button className="danger-button" onClick={() => handlers.onDelete(category)}>
+                删除
+              </button>
+            ) : null}
+          </div>
+        </td>
+      </tr>
+    ));
+  }
+
+  if (activeTab === 'settings') {
+    return rows.map((setting) => (
+      <tr key={setting.key}>
+        <td>{setting.group_name || '--'}</td>
+        <td>
+          <div className="table-title">{setting.label || setting.key}</div>
+          <div className="table-subcopy">{setting.key}</div>
+        </td>
+        <td>{String(setting.value ?? '')}</td>
+        <td>{truncateText(setting.description, 48)}</td>
+        <td>
+          <div className="table-actions">
+            <button className="ghost-button" onClick={() => handlers.onEditSetting(setting)}>
+              修改
             </button>
           </div>
         </td>
+      </tr>
+    ));
+  }
+
+  if (activeTab === 'auditLogs') {
+    return rows.map((log) => (
+      <tr key={log.id}>
+        <td>{formatDate(log.created_at)}</td>
+        <td>{`${log.admin_username || '--'} (${log.admin_role || '--'})`}</td>
+        <td>{log.action || '--'}</td>
+        <td>{`${log.resource_type || '--'} / ${log.resource_id || '--'}`}</td>
+        <td>{truncateText(log.detail, 60)}</td>
       </tr>
     ));
   }
@@ -1005,6 +1340,7 @@ function renderTableRows(activeTab, rows, handlers) {
       <td>{article.id}</td>
       <td>{article.title}</td>
       <td>{article.category?.name || '--'}</td>
+      <td>{`${article.status || '--'} / ${article.kind || '--'}${article.is_recommended ? ' / 推荐' : ''}`}</td>
       <td>{`${article.views ?? 0} / ${article.likes ?? 0} / ${article.favorites ?? 0}`}</td>
       <td>{formatDate(article.created_at)}</td>
       <td>
@@ -1018,9 +1354,11 @@ function renderTableRows(activeTab, rows, handlers) {
           >
             编辑
           </button>
-          <button className="danger-button" onClick={() => handlers.onDelete(article)}>
-            删除
-          </button>
+          {handlers.canDeleteDangerously ? (
+            <button className="danger-button" onClick={() => handlers.onDelete(article)}>
+              删除
+            </button>
+          ) : null}
         </div>
       </td>
     </tr>
@@ -1028,7 +1366,12 @@ function renderTableRows(activeTab, rows, handlers) {
 }
 
 function getColumnCount(activeTab) {
-  return activeTab === 'comments' ? 6 : 6 + Number(activeTab === 'posts');
+  if (activeTab === 'posts') return 8;
+  if (activeTab === 'comments') return 7;
+  if (activeTab === 'settings') return 5;
+  if (activeTab === 'auditLogs') return 5;
+  if (activeTab === 'articles') return 7;
+  return 6;
 }
 
 function getDetailTitle(detailType, detailData, loading) {

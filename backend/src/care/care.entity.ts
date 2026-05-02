@@ -15,11 +15,20 @@ export class Care {
   @Column({ type: 'varchar', length: 255, nullable: true })
   description: string;
 
+  @Column({ type: 'simple-enum', enum: ['record', 'plan'], default: 'record' })
+  mode: 'record' | 'plan';
+
   @Column({ type: 'date', nullable: false })
   date: Date;
 
   @Column({ type: 'time', nullable: true })
   time: string;
+
+  @Column({ type: 'time', nullable: true })
+  reminder_time: string;
+
+  @Column({ type: 'simple-enum', enum: ['daily', 'weekdays', 'weekly', 'custom'], nullable: true })
+  repeat_pattern: 'daily' | 'weekdays' | 'weekly' | 'custom';
 
   @Column({ type: 'int', nullable: true })
   duration: number;
@@ -29,6 +38,15 @@ export class Care {
 
   @Column({ type: 'text', nullable: true })
   notes: string;
+
+  @Column({ type: 'boolean', default: false })
+  is_completed: boolean;
+
+  @Column({ type: 'datetime', nullable: true })
+  last_completed_at: Date;
+
+  @Column({ type: 'int', nullable: true })
+  source_plan_id: number;
 
   @ManyToOne(() => Pet, pet => pet.cares)
   pet: Pet;

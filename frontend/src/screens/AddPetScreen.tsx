@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch } from 'react-native';
 import { Feedback } from '../components/Feedback';
+import ImageUploaderField from '../components/ImageUploaderField';
 import { useForm, Controller } from 'react-hook-form';
 import { getApiErrorMessage, petApi } from '../services/api';
 
@@ -21,7 +22,13 @@ const AddPetScreen = ({ navigation }: any) => {
     type: 'success' as 'success' | 'error' | 'loading',
     message: '',
   });
-  const { control, handleSubmit, formState: { errors } } = useForm<AddPetFormData>();
+  const { control, handleSubmit, formState: { errors } } = useForm<AddPetFormData>({
+    defaultValues: {
+      gender: 'male',
+      sterilized: false,
+      avatar: '',
+    },
+  });
 
   const showFeedback = (type: 'success' | 'error' | 'loading', message: string) => {
     setFeedback({ visible: true, type, message });
@@ -173,22 +180,19 @@ const AddPetScreen = ({ navigation }: any) => {
             </View>
           </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>头像URL</Text>
-            <Controller
-              control={control}
-              name="avatar"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={styles.input}
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  placeholder="请输入宠物头像的URL"
-                />
-              )}
-            />
-          </View>
+          <Controller
+            control={control}
+            name="avatar"
+            render={({ field: { onChange, value } }) => (
+              <ImageUploaderField
+                value={value}
+                onChange={onChange}
+                uploadImage={petApi.uploadAvatar}
+                label="宠物头像"
+                helperText="支持拍照或从相册上传，保存后会自动回显在宠物档案中。"
+              />
+            )}
+          />
 
           <TouchableOpacity
             style={styles.button}

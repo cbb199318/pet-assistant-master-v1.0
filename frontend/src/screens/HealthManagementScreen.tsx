@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getApiErrorMessage, healthApi } from '../services/api';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getApiErrorMessage, healthApi, resolveMediaUrl } from '../services/api';
 
 const HealthManagementScreen = ({ navigation, route }: any) => {
   const { pet } = route.params;
@@ -78,6 +78,9 @@ const HealthManagementScreen = ({ navigation, route }: any) => {
     </View>
   );
 
+  const renderRecordImage = (imageUrl?: string) =>
+    imageUrl ? <Image source={{ uri: resolveMediaUrl(imageUrl) }} style={styles.recordImage} /> : null;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -125,6 +128,9 @@ const HealthManagementScreen = ({ navigation, route }: any) => {
                       下次接种: {new Date(item.next_date).toLocaleDateString()}
                     </Text>
                   ) : null}
+                  {item.hospital ? <Text style={styles.recordMeta}>医院: {item.hospital}</Text> : null}
+                  {item.doctor ? <Text style={styles.recordMeta}>医生: {item.doctor}</Text> : null}
+                  {renderRecordImage(item.record_image_url)}
                   {item.notes ? <Text style={styles.recordNotes}>备注: {item.notes}</Text> : null}
                   {renderActions('EditVaccination', item, 'vaccination')}
                 </View>
@@ -159,6 +165,9 @@ const HealthManagementScreen = ({ navigation, route }: any) => {
                       下次驱虫: {new Date(item.next_date).toLocaleDateString()}
                     </Text>
                   ) : null}
+                  {item.hospital ? <Text style={styles.recordMeta}>执行机构: {item.hospital}</Text> : null}
+                  {item.doctor ? <Text style={styles.recordMeta}>执行人: {item.doctor}</Text> : null}
+                  {renderRecordImage(item.record_image_url)}
                   {item.notes ? <Text style={styles.recordNotes}>备注: {item.notes}</Text> : null}
                   {renderActions('EditDeworming', item, 'deworming')}
                 </View>
@@ -194,6 +203,7 @@ const HealthManagementScreen = ({ navigation, route }: any) => {
                   {item.recommendations ? (
                     <Text style={styles.recordNotes}>建议: {item.recommendations}</Text>
                   ) : null}
+                  {renderRecordImage(item.record_image_url)}
                   {renderActions('EditCheckup', item, 'checkup')}
                 </View>
               ))
@@ -258,6 +268,13 @@ const styles = StyleSheet.create({
   recordTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 6 },
   recordMeta: { fontSize: 14, color: '#666', marginBottom: 4 },
   recordNotes: { fontSize: 14, color: '#666', marginTop: 4, lineHeight: 20 },
+  recordImage: {
+    width: '100%',
+    height: 150,
+    borderRadius: 10,
+    marginTop: 10,
+    backgroundColor: '#eef2ef',
+  },
   recordActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 14 },
   actionButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: '#edf3ee' },
   actionText: { color: '#325d46', fontWeight: '600' },

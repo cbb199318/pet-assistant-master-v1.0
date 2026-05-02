@@ -251,10 +251,16 @@ const AdminScreen = ({ navigation }: any) => {
 
   const renderUser = ({ item }: any) => (
     <View style={styles.userCard}>
-      <Image
-        source={{ uri: item.avatar || 'https://example.com/avatar.jpg' }}
-        style={styles.avatar}
-      />
+      {item.avatar ? (
+        <Image
+          source={{ uri: item.avatar }}
+          style={styles.avatar}
+        />
+      ) : (
+        <View style={[styles.avatar, styles.avatarFallback]}>
+          <Text style={styles.avatarFallbackText}>{item.nickname?.charAt(0) || '管'}</Text>
+        </View>
+      )}
       <View style={styles.userInfo}>
         <Text style={styles.userName}>{item.nickname}</Text>
         <Text style={styles.userPhone}>{item.phone}</Text>
@@ -557,6 +563,16 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     marginRight: 15,
+  },
+  avatarFallback: {
+    backgroundColor: '#dfeee2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarFallbackText: {
+    color: '#326348',
+    fontSize: 18,
+    fontWeight: '700',
   },
   userInfo: {
     flex: 1,

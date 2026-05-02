@@ -120,6 +120,19 @@ export interface PetSummary {
   avatar?: string | null;
 }
 
+export interface CommunityBooking {
+  id: number;
+  serviceType: string;
+  serviceName: string;
+  serviceAddress: string;
+  bookingDate: string;
+  bookingTime: string;
+  status: string;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface AiConversationSummary {
   id: number;
   title: string;
@@ -194,6 +207,38 @@ async function request<T>(config: AxiosRequestConfig): Promise<T> {
   return response.data;
 }
 
+function getImageUploadMeta(uri: string) {
+  const fileName = uri.split('/').pop() || `record-${Date.now()}.jpg`;
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  const mimeType =
+    extension === 'png'
+      ? 'image/png'
+      : extension === 'webp'
+        ? 'image/webp'
+        : 'image/jpeg';
+
+  return { fileName, mimeType };
+}
+
+async function uploadImageToEndpoint(uri: string, endpoint: string) {
+  const { fileName, mimeType } = getImageUploadMeta(uri);
+  const formData = new FormData();
+  formData.append('image', {
+    uri,
+    name: fileName,
+    type: mimeType,
+  } as any);
+
+  return request<{ url: string }>({
+    url: endpoint,
+    method: 'POST',
+    data: formData,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+}
+
 export function getApiErrorMessage(error: any, fallback: string): string {
   return error?.response?.data?.message || error?.message || fallback;
 }
@@ -263,6 +308,8 @@ export const userApi = {
       method: 'PUT',
       data,
     }),
+
+  uploadAvatar: (uri: string) => uploadImageToEndpoint(uri, '/api/users/avatar-upload'),
 };
 
 export const petApi = {
@@ -291,6 +338,8 @@ export const petApi = {
       url: `/api/pets/${id}`,
       method: 'DELETE',
     }),
+
+  uploadAvatar: (uri: string) => uploadImageToEndpoint(uri, '/api/pets/avatar-upload'),
 };
 
 export const healthApi = {
@@ -374,6 +423,45 @@ export const healthApi = {
       method: 'DELETE',
       data: { pet_id },
     }),
+
+  uploadRecordImage: async (uri: string) => {
+    return uploadImageToEndpoint(uri, '/api/health/upload-record-image');
+  },
+
+  getProviderOptions: (keyword?: string) =>
+    request<any[]>({
+      url: '/api/health/provider-options',
+      method: 'GET',
+      params: keyword ? { keyword } : undefined,
+    }),
+
+  recognizeRecordImage: async (
+    uri: string,
+    recordType: 'vaccination' | 'deworming' | 'checkup',
+  ) => {
+    const { fileName, mimeType } = getImageUploadMeta(uri);
+    const formData = new FormData();
+    formData.append('recordType', recordType);
+    formData.append('image', {
+      uri,
+      name: fileName,
+      type: mimeType,
+    } as any);
+
+    return request<{
+      fields: Record<string, string>;
+      rawText: string;
+      message: string;
+      imageUrl: string;
+    }>({
+      url: '/api/health/ocr',
+      method: 'POST',
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
 };
 
 export const careApi = {
@@ -401,6 +489,19 @@ export const careApi = {
     request<any>({
       url: `/api/care/${id}`,
       method: 'DELETE',
+    }),
+
+  getTodayPlans: (petId?: number) =>
+    request<any[]>({
+      url: '/api/care/today',
+      method: 'GET',
+      params: petId ? { pet_id: petId } : undefined,
+    }),
+
+  completeTodayPlan: (id: number) =>
+    request<any>({
+      url: `/api/care/${id}/complete-today`,
+      method: 'POST',
     }),
 };
 
@@ -474,6 +575,39 @@ export const communityApi = {
       url: `/api/community/comments/${id}`,
       method: 'DELETE',
     }),
+
+  createBooking: (data: {
+    serviceType: string;
+    serviceName: string;
+    serviceAddress: string;
+    bookingDate: string;
+    bookingTime: string;
+    notes?: string;
+  }) =>
+    request<CommunityBooking>({
+      url: '/api/community/bookings',
+      method: 'POST',
+      data,
+    }),
+
+  getBookings: () =>
+    request<CommunityBooking[]>({
+      url: '/api/community/bookings',
+      method: 'GET',
+    }),
+
+  updateBookingStatus: (id: number, status: string) =>
+    request<CommunityBooking>({
+      url: `/api/community/bookings/${id}/status`,
+      method: 'PUT',
+      data: { status },
+    }),
+
+  deleteBooking: (id: number) =>
+    request<any>({
+      url: `/api/community/bookings/${id}`,
+      method: 'DELETE',
+    }),
 };
 
 export const knowledgeApi = {
@@ -493,6 +627,13 @@ export const knowledgeApi = {
   getRecommendedArticles: (params?: { limit?: number }) =>
     request<any[]>({
       url: '/api/knowledge/recommended',
+      method: 'GET',
+      params,
+    }),
+
+  getRecommendedProducts: (params?: { limit?: number }) =>
+    request<any[]>({
+      url: '/api/knowledge/products/recommended',
       method: 'GET',
       params,
     }),

@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository, Brackets } from 'typeorm';
+import { Brackets, DataSource, In, ObjectLiteral, Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { Pet } from '../pets/pet.entity';
 import { Vaccination } from '../health/vaccination.entity';
@@ -12,6 +12,54 @@ import { Comment } from '../community/comment.entity';
 import { Booking } from '../community/booking.entity';
 import { Article } from '../knowledge/article.entity';
 import { Category } from '../knowledge/category.entity';
+import { AdminAuditLog } from './admin-audit-log.entity';
+import { SystemSetting } from './system-setting.entity';
+
+type AdminActor = {
+  adminId: number;
+  username: string;
+  role: string;
+};
+
+type TrendDailyPoint = {
+  date: string;
+  users: number;
+  pets: number;
+  posts: number;
+  bookings: number;
+  articles: number;
+};
+
+const DEFAULT_SYSTEM_SETTINGS = [
+  {
+    key: 'knowledge_products_enabled',
+    value: 'true',
+    label: '用品推荐展示',
+    group_name: 'knowledge',
+    description: '控制用户端知识页是否展示用品推荐板块。',
+  },
+  {
+    key: 'knowledge_recommendation_title',
+    value: '用品推荐与护理要点',
+    label: '用品推荐标题',
+    group_name: 'knowledge',
+    description: '用户端知识页用品推荐区域标题。',
+  },
+  {
+    key: 'ai_shortcuts_enabled',
+    value: 'true',
+    label: 'AI 快捷问题',
+    group_name: 'ai',
+    description: '控制 AI 页面是否展示快捷问题模板。',
+  },
+  {
+    key: 'community_booking_enabled',
+    value: 'true',
+    label: '社区预约功能',
+    group_name: 'community',
+    description: '控制用户端社区页是否展示预约服务入口。',
+  },
+];
 
 @Injectable()
 export class AdminService {
@@ -30,10 +78,16 @@ export class AdminService {
     private postRepository: Repository<Post>,
     @InjectRepository(Comment)
     private commentRepository: Repository<Comment>,
+    @InjectRepository(Booking)
+    private bookingRepository: Repository<Booking>,
     @InjectRepository(Article)
     private articleRepository: Repository<Article>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    @InjectRepository(AdminAuditLog)
+    private adminAuditLogRepository: Repository<AdminAuditLog>,
+    @InjectRepository(SystemSetting)
+    private systemSettingRepository: Repository<SystemSetting>,
     private dataSource: DataSource,
   ) {}
 
@@ -48,45 +102,6 @@ export class AdminService {
     };
   }
 
-  async getOverview() {
-    const [
-      totalUsers,
-      totalPets,
-      totalVaccinations,
-      totalDewormings,
-      totalCheckups,
-      totalCares,
-      totalPosts,
-      totalComments,
-      totalArticles,
-      totalCategories,
-    ] = await Promise.all([
-      this.userRepository.count(),
-      this.petRepository.count(),
-      this.vaccinationRepository.count(),
-      this.dewormingRepository.count(),
-      this.checkupRepository.count(),
-      this.careRepository.count(),
-      this.postRepository.count(),
-      this.commentRepository.count(),
-      this.articleRepository.count(),
-      this.categoryRepository.count(),
-    ]);
-
-    return {
-      totalUsers,
-      totalPets,
-      totalVaccinations,
-      totalDewormings,
-      totalCheckups,
-      totalCares,
-      totalPosts,
-      totalComments,
-      totalArticles,
-      totalCategories,
-    };
-  }
-
   private buildPaging(params: { page: number; pageSize: number }) {
     const page = Math.max(1, params.page || 1);
     const pageSize = Math.min(50, Math.max(1, params.pageSize || 10));
@@ -98,13 +113,257 @@ export class AdminService {
     };
   }
 
+  private assertSuperAdmin(actor: AdminActor) {
+    if (actor.role !== 'super_admin') {
+      throw new ForbiddenException('当前管理员角色无权执行该操作');
+    }
+  }
+
+  private async logAdminAction(
+    actor: AdminActor,
+    action: string,
+    resourceType: string,
+    resourceId?: string | number | null,
+    detail?: string,
+  ) {
+    await this.adminAuditLogRepository.save(
+      this.adminAuditLogRepository.create({
+        admin_id: actor.adminId,
+        admin_username: actor.username,
+        admin_role: actor.role,
+        action,
+        resource_type: resourceType,
+        resource_id: resourceId != null ? String(resourceId) : null,
+        detail: detail || null,
+      }),
+    );
+  }
+
+  private async ensureDefaultSystemSettings() {
+    for (const item of DEFAULT_SYSTEM_SETTINGS) {
+      const existing = await this.systemSettingRepository.findOne({
+        where: { key: item.key },
+      });
+      if (!existing) {
+        await this.systemSettingRepository.save(
+          this.systemSettingRepository.create(item),
+        );
+      }
+    }
+  }
+
+  private formatSetting(setting: SystemSetting) {
+    return {
+      id: setting.id,
+      key: setting.key,
+      value: setting.value,
+      label: setting.label,
+      group_name: setting.group_name,
+      description: setting.description,
+      created_at: setting.created_at,
+      updated_at: setting.updated_at,
+    };
+  }
+
+  private async countCreatedSince<T extends { created_at?: Date; createdAt?: Date }>(
+    repository: Repository<T>,
+    field: 'created_at' | 'createdAt',
+    since: Date,
+  ) {
+    return repository
+      .createQueryBuilder('item')
+      .where(`item.${field} >= :since`, { since: since.toISOString() })
+      .getCount();
+  }
+
+  private formatDateKey(value?: string | Date | null) {
+    if (!value) {
+      return '';
+    }
+
+    const normalizedDate = new Date(value);
+    if (Number.isNaN(normalizedDate.getTime())) {
+      return '';
+    }
+
+    return normalizedDate.toISOString().slice(0, 10);
+  }
+
+  private buildDateKeys(rangeDays: number) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const keys: string[] = [];
+    for (let offset = rangeDays - 1; offset >= 0; offset--) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - offset);
+      keys.push(date.toISOString().slice(0, 10));
+    }
+
+    return keys;
+  }
+
+  private async getCreatedDateKeys<T extends ObjectLiteral>(
+    repository: Repository<T>,
+    field: 'created_at' | 'createdAt',
+    since: Date,
+  ) {
+    const rows = await repository
+      .createQueryBuilder('item')
+      .select(`item.${field}`, 'createdAt')
+      .where(`item.${field} >= :since`, { since: since.toISOString() })
+      .getRawMany<{ createdAt: string | Date }>();
+
+    return rows
+      .map((row) => this.formatDateKey(row.createdAt))
+      .filter(Boolean);
+  }
+
+  private buildCounterMap(keys: string[]) {
+    return keys.reduce((accumulator, key) => {
+      accumulator[key] = (accumulator[key] || 0) + 1;
+      return accumulator;
+    }, {} as Record<string, number>);
+  }
+
+  private async buildTrendSnapshot(rangeDays: number) {
+    const startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    startDate.setDate(startDate.getDate() - (rangeDays - 1));
+
+    const [userDates, petDates, postDates, bookingDates, articleDates] = await Promise.all([
+      this.getCreatedDateKeys(this.userRepository, 'created_at', startDate),
+      this.getCreatedDateKeys(this.petRepository, 'created_at', startDate),
+      this.getCreatedDateKeys(this.postRepository, 'created_at', startDate),
+      this.getCreatedDateKeys(this.bookingRepository, 'createdAt', startDate),
+      this.getCreatedDateKeys(this.articleRepository, 'created_at', startDate),
+    ]);
+
+    const userCounter = this.buildCounterMap(userDates);
+    const petCounter = this.buildCounterMap(petDates);
+    const postCounter = this.buildCounterMap(postDates);
+    const bookingCounter = this.buildCounterMap(bookingDates);
+    const articleCounter = this.buildCounterMap(articleDates);
+
+    const daily = this.buildDateKeys(rangeDays).map((date) => ({
+      date,
+      users: userCounter[date] || 0,
+      pets: petCounter[date] || 0,
+      posts: postCounter[date] || 0,
+      bookings: bookingCounter[date] || 0,
+      articles: articleCounter[date] || 0,
+    })) satisfies TrendDailyPoint[];
+
+    return {
+      rangeDays,
+      daily,
+      totals: daily.reduce(
+        (accumulator, item) => ({
+          users: accumulator.users + item.users,
+          pets: accumulator.pets + item.pets,
+          posts: accumulator.posts + item.posts,
+          bookings: accumulator.bookings + item.bookings,
+          articles: accumulator.articles + item.articles,
+        }),
+        {
+          users: 0,
+          pets: 0,
+          posts: 0,
+          bookings: 0,
+          articles: 0,
+        },
+      ),
+    };
+  }
+
+  async getOverview() {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const [
+      totalUsers,
+      totalPets,
+      totalVaccinations,
+      totalDewormings,
+      totalCheckups,
+      totalCares,
+      totalPosts,
+      totalComments,
+      totalBookings,
+      totalArticles,
+      totalCategories,
+      recentUsers,
+      recentPosts,
+      recentBookings,
+      recentArticles,
+    ] = await Promise.all([
+      this.userRepository.count(),
+      this.petRepository.count(),
+      this.vaccinationRepository.count(),
+      this.dewormingRepository.count(),
+      this.checkupRepository.count(),
+      this.careRepository.count(),
+      this.postRepository.count(),
+      this.commentRepository.count(),
+      this.bookingRepository.count(),
+      this.articleRepository.count(),
+      this.categoryRepository.count(),
+      this.countCreatedSince(this.userRepository, 'created_at', sevenDaysAgo),
+      this.countCreatedSince(this.postRepository, 'created_at', sevenDaysAgo),
+      this.countCreatedSince(this.bookingRepository, 'createdAt', sevenDaysAgo),
+      this.countCreatedSince(this.articleRepository, 'created_at', sevenDaysAgo),
+    ]);
+
+    return {
+      totalUsers,
+      totalPets,
+      totalVaccinations,
+      totalDewormings,
+      totalCheckups,
+      totalCares,
+      totalPosts,
+      totalComments,
+      totalBookings,
+      totalArticles,
+      totalCategories,
+      recentMetrics: {
+        recentUsers,
+        recentPosts,
+        recentBookings,
+        recentArticles,
+      },
+    };
+  }
+
+  async getTrends() {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+
+    const [last7Days, last30Days, recentComments] = await Promise.all([
+      this.buildTrendSnapshot(7),
+      this.buildTrendSnapshot(30),
+      this.countCreatedSince(this.commentRepository, 'created_at', sevenDaysAgo),
+    ]);
+
+    return {
+      last7Days,
+      last30Days,
+      recentActivity: {
+        periodDays: 7,
+        posts: last7Days.totals.posts,
+        comments: recentComments,
+        bookings: last7Days.totals.bookings,
+      },
+    };
+  }
+
   async getUsers(params: {
     keyword?: string;
     page: number;
     pageSize: number;
   }) {
     const { page, pageSize, skip } = this.buildPaging(params);
-
     const queryBuilder = this.userRepository.createQueryBuilder('user');
 
     if (params.keyword?.trim()) {
@@ -175,7 +434,8 @@ export class AdminService {
     };
   }
 
-  async deleteUser(id: number) {
+  async deleteUser(id: number, actor: AdminActor) {
+    this.assertSuperAdmin(actor);
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
       throw new NotFoundException('用户不存在');
@@ -205,16 +465,16 @@ export class AdminService {
       }
 
       await manager.delete(Comment, { user_id: id });
-
       await manager
         .createQueryBuilder()
         .delete()
         .from(Booking)
         .where('userId = :userId', { userId: id })
         .execute();
-
       await manager.delete(User, { id });
     });
+
+    await this.logAdminAction(actor, 'delete_user', 'user', id, `删除用户 ${user.nickname}`);
 
     return {
       message: '用户删除成功',
@@ -252,6 +512,7 @@ export class AdminService {
         content: post.content,
         likes: post.likes,
         comments: post.comments,
+        status: post.status,
         created_at: post.created_at,
         author: this.toUserSummary(post.user),
       })),
@@ -278,18 +539,32 @@ export class AdminService {
       images: post.images || [],
       likes: post.likes,
       comments: post.comments,
+      status: post.status,
       created_at: post.created_at,
       author: this.toUserSummary(post.user),
       commentList: post.commentList.map((comment) => ({
         id: comment.id,
         content: comment.content,
+        status: comment.status,
         created_at: comment.created_at,
         author: this.toUserSummary(comment.user),
       })),
     };
   }
 
-  async deletePost(id: number) {
+  async updatePostStatus(id: number, status: string, actor: AdminActor) {
+    const post = await this.postRepository.findOne({ where: { id } });
+    if (!post) {
+      throw new NotFoundException('帖子不存在');
+    }
+    post.status = status;
+    const saved = await this.postRepository.save(post);
+    await this.logAdminAction(actor, 'update_post_status', 'post', id, `状态更新为 ${status}`);
+    return saved;
+  }
+
+  async deletePost(id: number, actor: AdminActor) {
+    this.assertSuperAdmin(actor);
     const post = await this.postRepository.findOne({ where: { id } });
     if (!post) {
       throw new NotFoundException('帖子不存在');
@@ -297,6 +572,7 @@ export class AdminService {
 
     await this.commentRepository.delete({ post_id: id });
     await this.postRepository.delete(id);
+    await this.logAdminAction(actor, 'delete_post', 'post', id, post.title);
 
     return { message: '帖子删除成功' };
   }
@@ -330,6 +606,7 @@ export class AdminService {
       items: items.map((comment) => ({
         id: comment.id,
         content: comment.content,
+        status: comment.status,
         created_at: comment.created_at,
         author: this.toUserSummary(comment.user),
         post: comment.post
@@ -358,6 +635,7 @@ export class AdminService {
     return {
       id: comment.id,
       content: comment.content,
+      status: comment.status,
       created_at: comment.created_at,
       author: this.toUserSummary(comment.user),
       post: comment.post
@@ -365,13 +643,26 @@ export class AdminService {
             id: comment.post.id,
             title: comment.post.title,
             content: comment.post.content,
+            status: comment.post.status,
             author: comment.post.user ? this.toUserSummary(comment.post.user) : null,
           }
         : null,
     };
   }
 
-  async deleteComment(id: number) {
+  async updateCommentStatus(id: number, status: string, actor: AdminActor) {
+    const comment = await this.commentRepository.findOne({ where: { id } });
+    if (!comment) {
+      throw new NotFoundException('评论不存在');
+    }
+    comment.status = status;
+    const saved = await this.commentRepository.save(comment);
+    await this.logAdminAction(actor, 'update_comment_status', 'comment', id, `状态更新为 ${status}`);
+    return saved;
+  }
+
+  async deleteComment(id: number, actor: AdminActor) {
+    this.assertSuperAdmin(actor);
     const comment = await this.commentRepository.findOne({
       where: { id },
       relations: ['post'],
@@ -386,6 +677,7 @@ export class AdminService {
     }
 
     await this.commentRepository.delete(id);
+    await this.logAdminAction(actor, 'delete_comment', 'comment', id, comment.content.slice(0, 80));
     return { message: '评论删除成功' };
   }
 
@@ -445,6 +737,8 @@ export class AdminService {
       articles: (category.articles || []).map((article) => ({
         id: article.id,
         title: article.title,
+        status: article.status,
+        kind: article.kind,
         views: article.views,
         likes: article.likes,
         favorites: article.favorites,
@@ -452,21 +746,26 @@ export class AdminService {
     };
   }
 
-  async createCategory(data: { name: string; description?: string }) {
+  async createCategory(data: { name: string; description?: string }, actor: AdminActor) {
     const category = this.categoryRepository.create(data);
-    return this.categoryRepository.save(category);
+    const saved = await this.categoryRepository.save(category);
+    await this.logAdminAction(actor, 'create_category', 'category', saved.id, saved.name);
+    return saved;
   }
 
-  async updateCategory(id: number, data: { name?: string; description?: string }) {
+  async updateCategory(id: number, data: { name?: string; description?: string }, actor: AdminActor) {
     const category = await this.categoryRepository.findOne({ where: { id } });
     if (!category) {
       throw new NotFoundException('分类不存在');
     }
     Object.assign(category, data);
-    return this.categoryRepository.save(category);
+    const saved = await this.categoryRepository.save(category);
+    await this.logAdminAction(actor, 'update_category', 'category', id, saved.name);
+    return saved;
   }
 
-  async deleteCategory(id: number) {
+  async deleteCategory(id: number, actor: AdminActor) {
+    this.assertSuperAdmin(actor);
     const category = await this.categoryRepository.findOne({
       where: { id },
       relations: ['articles'],
@@ -479,6 +778,7 @@ export class AdminService {
     }
 
     await this.categoryRepository.delete(id);
+    await this.logAdminAction(actor, 'delete_category', 'category', id, category.name);
     return { message: '分类删除成功' };
   }
 
@@ -500,7 +800,8 @@ export class AdminService {
     }
 
     const [items, total] = await queryBuilder
-      .orderBy('article.created_at', 'DESC')
+      .orderBy('article.sort_order', 'DESC')
+      .addOrderBy('article.created_at', 'DESC')
       .skip(skip)
       .take(pageSize)
       .getManyAndCount();
@@ -513,6 +814,11 @@ export class AdminService {
         views: article.views,
         likes: article.likes,
         favorites: article.favorites,
+        status: article.status,
+        kind: article.kind,
+        is_recommended: article.is_recommended,
+        sort_order: article.sort_order,
+        recommendation_reason: article.recommendation_reason,
         created_at: article.created_at,
         category: article.category
           ? {
@@ -544,6 +850,11 @@ export class AdminService {
       views: article.views,
       likes: article.likes,
       favorites: article.favorites,
+      status: article.status,
+      kind: article.kind,
+      is_recommended: article.is_recommended,
+      sort_order: article.sort_order,
+      recommendation_reason: article.recommendation_reason,
       created_at: article.created_at,
       updated_at: article.updated_at,
       category: article.category
@@ -556,12 +867,20 @@ export class AdminService {
     };
   }
 
-  async createArticle(data: {
-    title: string;
-    content: string;
-    cover_image?: string;
-    categoryId: number;
-  }) {
+  async createArticle(
+    data: {
+      title: string;
+      content: string;
+      cover_image?: string;
+      categoryId: number;
+      status?: string;
+      kind?: string;
+      is_recommended?: boolean;
+      sort_order?: number;
+      recommendation_reason?: string;
+    },
+    actor: AdminActor,
+  ) {
     const category = await this.categoryRepository.findOne({
       where: { id: data.categoryId },
     });
@@ -574,9 +893,16 @@ export class AdminService {
       content: data.content,
       cover_image: data.cover_image,
       category,
+      status: data.status || 'published',
+      kind: data.kind || 'knowledge',
+      is_recommended: Boolean(data.is_recommended),
+      sort_order: Number(data.sort_order) || 0,
+      recommendation_reason: data.recommendation_reason || null,
     });
 
-    return this.articleRepository.save(article);
+    const saved = await this.articleRepository.save(article);
+    await this.logAdminAction(actor, 'create_article', 'article', saved.id, saved.title);
+    return saved;
   }
 
   async updateArticle(
@@ -586,7 +912,13 @@ export class AdminService {
       content?: string;
       cover_image?: string;
       categoryId?: number;
+      status?: string;
+      kind?: string;
+      is_recommended?: boolean;
+      sort_order?: number;
+      recommendation_reason?: string;
     },
+    actor: AdminActor,
   ) {
     const article = await this.articleRepository.findOne({
       where: { id },
@@ -606,26 +938,117 @@ export class AdminService {
       article.category = category;
     }
 
-    if (data.title !== undefined) {
-      article.title = data.title;
-    }
-    if (data.content !== undefined) {
-      article.content = data.content;
-    }
-    if (data.cover_image !== undefined) {
-      article.cover_image = data.cover_image;
+    if (data.title !== undefined) article.title = data.title;
+    if (data.content !== undefined) article.content = data.content;
+    if (data.cover_image !== undefined) article.cover_image = data.cover_image;
+    if (data.status !== undefined) article.status = data.status;
+    if (data.kind !== undefined) article.kind = data.kind;
+    if (data.is_recommended !== undefined) article.is_recommended = Boolean(data.is_recommended);
+    if (data.sort_order !== undefined) article.sort_order = Number(data.sort_order) || 0;
+    if (data.recommendation_reason !== undefined) {
+      article.recommendation_reason = data.recommendation_reason || null;
     }
 
-    return this.articleRepository.save(article);
+    const saved = await this.articleRepository.save(article);
+    await this.logAdminAction(actor, 'update_article', 'article', id, saved.title);
+    return saved;
   }
 
-  async deleteArticle(id: number) {
+  async deleteArticle(id: number, actor: AdminActor) {
+    this.assertSuperAdmin(actor);
     const article = await this.articleRepository.findOne({ where: { id } });
     if (!article) {
       throw new NotFoundException('文章不存在');
     }
 
     await this.articleRepository.delete(id);
+    await this.logAdminAction(actor, 'delete_article', 'article', id, article.title);
     return { message: '文章删除成功' };
+  }
+
+  async getSystemSettings() {
+    await this.ensureDefaultSystemSettings();
+    const settings = await this.systemSettingRepository.find({
+      order: {
+        group_name: 'ASC',
+        key: 'ASC',
+      },
+    });
+    return settings.map((item) => this.formatSetting(item));
+  }
+
+  async updateSystemSetting(
+    key: string,
+    data: { value?: string; label?: string; description?: string; group_name?: string },
+    actor: AdminActor,
+  ) {
+    this.assertSuperAdmin(actor);
+    await this.ensureDefaultSystemSettings();
+    const setting = await this.systemSettingRepository.findOne({ where: { key } });
+    if (!setting) {
+      throw new NotFoundException('配置项不存在');
+    }
+
+    if (data.value !== undefined) setting.value = data.value;
+    if (data.label !== undefined) setting.label = data.label;
+    if (data.description !== undefined) setting.description = data.description;
+    if (data.group_name !== undefined) setting.group_name = data.group_name;
+
+    const saved = await this.systemSettingRepository.save(setting);
+    await this.logAdminAction(actor, 'update_setting', 'system_setting', saved.key, saved.value || '');
+    return this.formatSetting(saved);
+  }
+
+  async getAuditLogs(params: {
+    keyword?: string;
+    action?: string;
+    resource_type?: string;
+    admin_username?: string;
+    page: number;
+    pageSize: number;
+  }) {
+    const { page, pageSize, skip } = this.buildPaging(params);
+    const queryBuilder = this.adminAuditLogRepository.createQueryBuilder('log');
+
+    if (params.keyword?.trim()) {
+      const keyword = `%${params.keyword.trim()}%`;
+      queryBuilder.where(
+        new Brackets((qb) => {
+          qb.where('log.admin_username LIKE :keyword', { keyword })
+            .orWhere('log.action LIKE :keyword', { keyword })
+            .orWhere('log.resource_type LIKE :keyword', { keyword })
+            .orWhere('log.detail LIKE :keyword', { keyword });
+        }),
+      );
+    }
+
+    if (params.action?.trim()) {
+      queryBuilder.andWhere('log.action = :action', { action: params.action.trim() });
+    }
+
+    if (params.resource_type?.trim()) {
+      queryBuilder.andWhere('log.resource_type = :resourceType', {
+        resourceType: params.resource_type.trim(),
+      });
+    }
+
+    if (params.admin_username?.trim()) {
+      queryBuilder.andWhere('log.admin_username = :adminUsername', {
+        adminUsername: params.admin_username.trim(),
+      });
+    }
+
+    const [items, total] = await queryBuilder
+      .orderBy('log.created_at', 'DESC')
+      .skip(skip)
+      .take(pageSize)
+      .getManyAndCount();
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+    };
   }
 }

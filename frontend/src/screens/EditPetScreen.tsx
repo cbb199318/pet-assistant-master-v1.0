@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Switch } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
+import ImageUploaderField from '../components/ImageUploaderField';
 import { getApiErrorMessage, petApi } from '../services/api';
 
 interface EditPetFormData {
@@ -167,22 +168,19 @@ const EditPetScreen = ({ navigation, route }: any) => {
             </View>
           </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>头像URL</Text>
-            <Controller
-              control={control}
-              name="avatar"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={styles.input}
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  placeholder="请输入宠物头像的URL"
-                />
-              )}
-            />
-          </View>
+          <Controller
+            control={control}
+            name="avatar"
+            render={({ field: { onChange, value } }) => (
+              <ImageUploaderField
+                value={value}
+                onChange={onChange}
+                uploadImage={petApi.uploadAvatar}
+                label="宠物头像"
+                helperText="重新上传后会直接替换当前宠物头像。"
+              />
+            )}
+          />
 
           <TouchableOpacity
             style={styles.button}

@@ -6,7 +6,10 @@
     "dev:user": "EXPO_PUBLIC_API_PORT=4317 npm --prefix frontend run web -- --port 8934 --host lan --clear",
     "dev:user:native": "node scripts/start-native-dev.js",
     "dev:admin": "VITE_API_PORT=4317 npm --prefix admin-web run dev",
+    "dev:all": "node scripts/dev-all.js",
     "build:backend": "npm --prefix backend run build",
-    "build:admin": "npm --prefix admin-web run build"
+    "build:admin": "npm --prefix admin-web run build",
+    "check:all": "node scripts/check-all.js",
+    "health:check": "node scripts/health-check.js"
   }
 }

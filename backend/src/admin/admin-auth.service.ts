@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import { AdminAuditLog } from './admin-audit-log.entity';
 import { AdminUser } from './admin-user.entity';
 
 @Injectable()
@@ -15,6 +16,8 @@ export class AdminAuthService implements OnModuleInit {
   constructor(
     @InjectRepository(AdminUser)
     private adminUserRepository: Repository<AdminUser>,
+    @InjectRepository(AdminAuditLog)
+    private adminAuditLogRepository: Repository<AdminAuditLog>,
     private jwtService: JwtService,
   ) {}
 
@@ -29,10 +32,18 @@ export class AdminAuthService implements OnModuleInit {
     };
   }
 
+  private getDefaultContentAdminCredentials() {
+    return {
+      username: process.env.CONTENT_ADMIN_USERNAME || 'editor',
+      password: process.env.CONTENT_ADMIN_PASSWORD || 'editor123456',
+    };
+  }
+
   private toProfile(adminUser: AdminUser) {
     return {
       id: adminUser.id,
       username: adminUser.username,
+      role: adminUser.role,
       status: adminUser.status,
       last_login_at: adminUser.last_login_at,
       created_at: adminUser.created_at,
@@ -43,12 +54,27 @@ export class AdminAuthService implements OnModuleInit {
     return this.jwtService.sign({
       adminId: adminUser.id,
       username: adminUser.username,
+      role: adminUser.role,
       type: 'admin',
     });
   }
 
   async ensureDefaultAdmin() {
-    const { username, password } = this.getDefaultAdminCredentials();
+    const defaultAdmin = this.getDefaultAdminCredentials();
+    const contentAdmin = this.getDefaultContentAdminCredentials();
+
+    await this.ensureSeedAdmin(defaultAdmin.username, defaultAdmin.password, 'super_admin');
+
+    if (contentAdmin.username !== defaultAdmin.username) {
+      await this.ensureSeedAdmin(contentAdmin.username, contentAdmin.password, 'content_admin');
+    }
+  }
+
+  private async ensureSeedAdmin(
+    username: string,
+    password: string,
+    role: 'super_admin' | 'content_admin',
+  ) {
     const existingAdmin = await this.adminUserRepository.findOne({
       where: { username },
     });
@@ -59,6 +85,7 @@ export class AdminAuthService implements OnModuleInit {
       const adminUser = this.adminUserRepository.create({
         username,
         password: hashedPassword,
+        role,
         status: 'active',
       });
       await this.adminUserRepository.save(adminUser);
@@ -66,6 +93,7 @@ export class AdminAuthService implements OnModuleInit {
     }
 
     existingAdmin.password = hashedPassword;
+    existingAdmin.role = role;
     existingAdmin.status = 'active';
     await this.adminUserRepository.save(existingAdmin);
   }
@@ -90,6 +118,17 @@ export class AdminAuthService implements OnModuleInit {
 
     adminUser.last_login_at = new Date();
     await this.adminUserRepository.save(adminUser);
+    await this.adminAuditLogRepository.save(
+      this.adminAuditLogRepository.create({
+        admin_id: adminUser.id,
+        admin_username: adminUser.username,
+        admin_role: adminUser.role,
+        action: 'login',
+        resource_type: 'admin_auth',
+        resource_id: String(adminUser.id),
+        detail: '管理员登录成功',
+      }),
+    );
 
     return {
       admin: this.toProfile(adminUser),

@@ -52,13 +52,22 @@ export class KnowledgeController {
     cover_image?: string;
     image?: string;
     categoryId: number;
+    status?: string;
+    kind?: string;
+    is_recommended?: boolean;
+    sort_order?: number;
+    recommendation_reason?: string;
   }): Promise<Article> {
     return this.knowledgeService.createArticle(articleData);
   }
 
   @Get('articles')
-  async getArticles(@Query('limit') limit: number = 10, @Query('offset') offset: number = 0): Promise<Article[]> {
-    return this.knowledgeService.getArticles(limit, offset);
+  async getArticles(
+    @Query('limit') limit: number = 10,
+    @Query('offset') offset: number = 0,
+    @Query('kind') kind: string = 'knowledge',
+  ): Promise<Article[]> {
+    return this.knowledgeService.getArticles(limit, offset, kind);
   }
 
   @Get('articles/:id')
@@ -70,9 +79,10 @@ export class KnowledgeController {
   async getArticlesByCategoryId(
     @Param('categoryId') categoryId: number,
     @Query('limit') limit: number = 10,
-    @Query('offset') offset: number = 0
+    @Query('offset') offset: number = 0,
+    @Query('kind') kind: string = 'knowledge',
   ): Promise<Article[]> {
-    return this.knowledgeService.getArticlesByCategoryId(categoryId, limit, offset);
+    return this.knowledgeService.getArticlesByCategoryId(categoryId, limit, offset, kind);
   }
 
   @Put('articles/:id')
@@ -83,6 +93,11 @@ export class KnowledgeController {
     cover_image?: string;
     image?: string;
     categoryId?: number;
+    status?: string;
+    kind?: string;
+    is_recommended?: boolean;
+    sort_order?: number;
+    recommendation_reason?: string;
   }): Promise<Article> {
     return this.knowledgeService.updateArticle(id, articleData);
   }
@@ -114,5 +129,10 @@ export class KnowledgeController {
   @Get('recommended')
   async getRecommendedArticles(@Query('limit') limit: number = 5): Promise<Article[]> {
     return this.knowledgeService.getRecommendedArticles(limit);
+  }
+
+  @Get('products/recommended')
+  async getRecommendedProducts(@Query('limit') limit: number = 6): Promise<Article[]> {
+    return this.knowledgeService.getRecommendedProducts(limit);
   }
 }

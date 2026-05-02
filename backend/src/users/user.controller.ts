@@ -1,6 +1,10 @@
-import { Controller, Post, Body, ValidationPipe, Put, Get, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Post, Body, ValidationPipe, Put, Get, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { UserService } from './user.service';
 import { AuthGuard } from '@nestjs/passport';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { mkdirSync, writeFileSync } from 'fs';
+import { extname } from 'path';
+import { PROFILE_UPLOAD_DIR, PROFILE_UPLOAD_LIMIT, PROFILE_UPLOAD_PUBLIC_PREFIX } from '../uploads/upload.constants';
 
 class RegisterDto {
   phone: string;
@@ -30,6 +34,13 @@ class BindEmailDto {
 @Controller('api/users')
 export class UserController {
   constructor(private userService: UserService) {}
+
+  private saveAvatar(file: { originalname: string; buffer: Buffer }) {
+    mkdirSync(PROFILE_UPLOAD_DIR, { recursive: true });
+    const filename = `user-${Date.now()}-${Math.random().toString(36).slice(2, 10)}${extname(file.originalname || '.jpg') || '.jpg'}`;
+    writeFileSync(`${PROFILE_UPLOAD_DIR}/${filename}`, file.buffer);
+    return `${PROFILE_UPLOAD_PUBLIC_PREFIX}/${filename}`;
+  }
 
   @Post('register')
   async register(@Body(ValidationPipe) body: RegisterDto) {
@@ -63,5 +74,29 @@ export class UserController {
   @Get('profile')
   async getProfile(@Req() req) {
     return this.userService.getProfile(req.user.userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('avatar-upload')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: {
+        fileSize: PROFILE_UPLOAD_LIMIT,
+      },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('image/')) {
+          return callback(new BadRequestException('仅支持上传图片文件'), false);
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async uploadAvatar(@UploadedFile() file: any) {
+    if (!file) {
+      throw new BadRequestException('请上传头像图片');
+    }
+    return {
+      url: this.saveAvatar(file),
+    };
   }
 }
