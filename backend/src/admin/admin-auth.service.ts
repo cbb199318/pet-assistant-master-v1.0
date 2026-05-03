@@ -10,6 +10,7 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { AdminAuditLog } from './admin-audit-log.entity';
 import { AdminUser } from './admin-user.entity';
+import { AdminRole, getAdminPermissions, getRoleLabel } from './admin-permissions';
 
 @Injectable()
 export class AdminAuthService implements OnModuleInit {
@@ -44,6 +45,8 @@ export class AdminAuthService implements OnModuleInit {
       id: adminUser.id,
       username: adminUser.username,
       role: adminUser.role,
+      role_label: getRoleLabel(adminUser.role),
+      permissions: getAdminPermissions(adminUser.role),
       status: adminUser.status,
       last_login_at: adminUser.last_login_at,
       created_at: adminUser.created_at,
@@ -73,7 +76,7 @@ export class AdminAuthService implements OnModuleInit {
   private async ensureSeedAdmin(
     username: string,
     password: string,
-    role: 'super_admin' | 'content_admin',
+    role: AdminRole,
   ) {
     const existingAdmin = await this.adminUserRepository.findOne({
       where: { username },

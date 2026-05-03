@@ -1,19 +1,31 @@
 # 宠物助手
 
-当前仓库已经收口为三端联调版本：
+宠物助手当前是一个三端联调项目：
 
-- 用户端：`frontend`，Expo 应用，支持 `Web` 和 `局域网手机真机`
-- 管理端：`admin-web`，React + Vite 独立后台
-- 后端：`backend`，NestJS + `sql.js`
+- 用户端：`frontend`
+- 管理端：`admin-web`
+- 后端：`backend`
 
-默认开发环境还会自动补齐一套演示种子数据，方便直接做答辩演示。
+项目默认以“本地开发可直接演示”为目标，开发环境启动后会自动补齐演示数据，不依赖额外数据库服务。
 
-补充文档：
+相关文档：
 
-- Windows 启动说明：[WINDOWS-启动使用说明.md](/Users/caobingbing/workspace/pet-assistant-master-v1.0/WINDOWS-启动使用说明.md)
 - 产品设计文档：[产品设计文档.md](/Users/caobingbing/workspace/pet-assistant-master-v1.0/产品设计文档.md)
+- Windows 启动说明：[WINDOWS-启动使用说明.md](/Users/caobingbing/workspace/pet-assistant-master-v1.0/WINDOWS-启动使用说明.md)
+- 部署说明：[DEPLOYMENT.md](/Users/caobingbing/workspace/pet-assistant-master-v1.0/DEPLOYMENT.md)
 
-## 启动方式
+## 当前结构
+
+- `frontend`
+  - Expo 用户端，支持 Web、Expo Go 真机调试
+- `admin-web`
+  - React + Vite 管理后台
+- `backend`
+  - NestJS + TypeORM + `sql.js`
+- `scripts`
+  - 三端联调、构建检查、健康检查、原生真机启动辅助脚本
+
+## 快速开始
 
 先安装依赖：
 
@@ -23,7 +35,7 @@ npm install --prefix frontend
 npm install --prefix admin-web
 ```
 
-再从仓库根目录分别启动三端：
+再启动项目：
 
 ```bash
 npm run dev:backend
@@ -31,113 +43,44 @@ npm run dev:user
 npm run dev:admin
 ```
 
-也可以直接一键联调启动：
+也可以直接一键联调：
 
 ```bash
 npm run dev:all
 ```
 
-如果你只想启动开发服务但不自动灌入演示数据，可以临时关闭：
-
-```bash
-DEMO_SEED_ENABLED=false npm run dev:backend
-```
-
-默认端口：
+默认地址：
 
 - 后端：`http://127.0.0.1:4317`
 - 用户端 Web：`http://127.0.0.1:8934`
 - 管理端 Web：`http://127.0.0.1:5617`
 
-## 局域网访问
-
-### 用户端 Web / 管理端 Web
-
-前端会优先按当前访问页面的主机名自动推断后端地址：
-
-- 电脑本机访问 `http://localhost:8934` 时，会请求 `http://localhost:4317`
-- 手机访问 `http://192.168.x.x:8934` 时，会请求 `http://192.168.x.x:4317`
-- 管理端同理，`5617 -> 4317`
-
-### 手机真机 Expo
-
-用户端原生真机现在会优先从 Expo 的 bundle 地址自动提取当前开发机 IP，再请求同一台机器上的 `4317` 后端。正常情况下：
-
-- 换一台电脑启动项目，不需要改代码
-- 只要手机扫的是该电脑 Expo 输出的二维码，API 会自动跟随到那台电脑
-
-如果你需要手动覆盖后端地址，可以在启动前设置环境变量：
+## 常用脚本
 
 ```bash
-EXPO_PUBLIC_API_BASE_URL=http://192.168.1.23:4317 npm run dev:user
-VITE_API_BASE_URL=http://192.168.1.23:4317 npm run dev:admin
+npm run dev:backend
+npm run dev:user
+npm run dev:user:native
+npm run dev:admin
+npm run dev:all
+npm run check:all
+npm run health:check
 ```
 
-## 当前已交付
+说明：
 
-### 用户端
+- `dev:user`
+  - 启动用户端 Web，适合本机和局域网浏览器测试
+- `dev:user:native`
+  - 启动 Expo 原生调试，适合 Expo Go 真机扫码
+- `check:all`
+  - 依次检查 `backend build + frontend tsc + admin-web build`
+- `health:check`
+  - 检查后端、用户端 Web、管理端 Web 是否可访问
 
-- 注册、登录、获取个人资料
-- 修改昵称头像、修改密码、绑定邮箱
-- 宠物档案新增、列表、编辑、删除
-- 健康管理：疫苗、驱虫、体检记录增删改查
-- 健康记录支持拍照上传凭证、OCR 回填、医院/医生快捷选择与手动修正
-- 日常护理支持 `record / plan` 双模式、今日待办、一键完成和执行留痕
-- AI 问答页面接后端 `/api/ai/chat`
-- AI 会话历史：历史列表、继续对话、删除会话、新建对话
-- AI 图片理解：支持相册上传和拍照上传，识别结果写入同一会话并支持继续追问
-- AI 语音问答：录音上传、发送前本地预听、语音转写、结果写入同一会话并支持继续追问
-- AI 宠物档案联动：可为当前会话绑定宠物，后端自动注入宠物基础档案与近期记录作为问答上下文
-- AI 快捷问题模板、语音播报和未配置 Key 时的可读降级提示
-- 社区：帖子列表、发帖、点赞、帖子详情、评论
-- 社区我的内容管理：我的帖子、编辑帖子、删除帖子、我的评论、删除自己的评论
-- 社区预约：创建预约、查看预约状态、取消预约、删除预约记录
-- 知识百科：分类、推荐、搜索、文章详情、点赞、收藏
-- 知识页用品推荐改为后台推荐内容驱动，不再写死在前端
-- 开发环境自动补齐演示账号、宠物、健康记录、护理计划、社区内容和知识内容
+## 默认账号
 
-### 管理端
-
-- 管理员独立登录
-- 概览统计：用户、宠物、健康记录、护理记录、帖子、评论、预约、文章、分类
-- 最小趋势分析：近 `7 / 30` 天用户、宠物、帖子、预约、文章新增趋势，外加近 7 天活跃摘要
-- 用户管理：列表、搜索、详情、删除
-- 内容管理：
-  - 帖子：列表、搜索、详情、审核状态更新、删除
-  - 评论：列表、搜索、详情、审核状态更新、删除
-  - 分类：列表、搜索、详情、新增、编辑、删除
-  - 文章：列表、搜索、详情、新增、编辑、删除
-- 文章支持 `status / kind / is_recommended / sort_order / recommendation_reason`
-- 系统配置：基础展示与开关项维护
-- 审计日志：管理员操作留痕，支持按管理员、动作、资源类型筛选
-- 两级角色增强：
-  - `super_admin`：全部菜单与危险操作
-  - `content_admin`：内容审核、文章/分类维护、审计日志只读，不显示用户删除和系统配置入口
-
-### 后端
-
-- 普通用户 JWT 与管理员 JWT 分离
-- 管理端接口仅允许管理员 token 访问
-- 危险后台操作统一收口到 `super_admin`，权限失败返回明确 `403`
-- 宠物、健康、护理按当前登录用户校验归属
-- 社区帖子、评论、预约链路按 JWT 中 `userId` 归属
-- 提供 `GET /health` 健康检查接口
-- 提供 `GET /api/admin/dashboard/trends` 最小分析接口
-- AI 文本问答未配置 `DEEPSEEK_API_KEY` 时返回可识别降级提示
-- AI 图片理解未配置 `QWEN_API_KEY` 时返回可识别降级提示
-- AI 语音转写未配置 `QWEN_API_KEY` 时返回可识别降级提示
-
-## 当前未完成
-
-- 更细粒度的 RBAC 权限点与角色权限映射
-- 留存、cohort、多维筛选等复杂运营报表
-- 前端自动化测试与更完整的端到端测试体系
-- 配置变更的实时广播与更完整的系统配置后台
-- 更丰富的演示素材与更接近真实运营的数据规模
-
-## 默认管理员账号
-
-管理员账号来自 [backend/.env](/Users/caobingbing/workspace/pet-assistant-master-v1.0/backend/.env)；如果未配置，后端也会回退到默认值：
+管理员账号默认来自 [backend/.env](/Users/caobingbing/workspace/pet-assistant-master-v1.0/backend/.env)，未修改时一般是：
 
 ```env
 ADMIN_USERNAME=admin
@@ -146,39 +89,123 @@ CONTENT_ADMIN_USERNAME=editor
 CONTENT_ADMIN_PASSWORD=editor123456
 ```
 
-角色差异：
-
-- `super_admin`：可修改系统配置、删除用户、删除文章/分类、强制删除帖子和评论
-- `content_admin`：可审核帖子/评论，可新增编辑文章和分类，可查看审计日志，但不能执行上述危险操作
-
-## 默认演示账号
-
-开发环境通过 `npm run dev:backend` 或 `npm run dev:all` 启动时，后端会自动补齐一套演示数据，默认普通用户账号为：
+开发环境演示普通用户默认是：
 
 ```env
 DEMO_USER_PHONE=13900009999
 DEMO_USER_PASSWORD=demo123456
 ```
 
-演示数据特性：
+## 演示数据
 
-- 只在开发启动链路自动执行，不进入 `start:prod`
-- 采用“补齐缺失数据”策略，不会清空已有本地库
-- 重复启动不会无限追加同一批演示数据
-- 演示素材统一走本地 `/uploads/demo/*`，不再依赖 `example.com`
+开发环境通过 `npm run dev:backend` 或 `npm run dev:all` 启动时，后端会自动补齐演示数据：
 
-环境变量说明：
+- 演示用户
+- 演示宠物
+- 健康记录
+- 护理计划
+- 社区帖子与评论
+- 知识文章与推荐内容
 
-```env
-DEMO_SEED_ENABLED=true
+关闭方式：
+
+```bash
+DEMO_SEED_ENABLED=false npm run dev:backend
 ```
 
-- 未显式配置时，`start:dev` 默认开启
-- 设为 `false`、`0`、`off`、`no` 时关闭自动演示种子
+特性：
+
+- 只在开发启动链路执行
+- 重复启动不会无限重复插入
+- 不会主动清空你已有的本地数据
+
+## 用户端当前功能
+
+### 导航结构
+
+底部导航当前为：
+
+- 首页
+- 知识
+- AI 助手
+- 交流
+- 我的
+
+首页是“当前主宠物”视图：
+
+- 支持切换主宠物
+- 展示主宠物基础信息
+- 展示今日护理和健康摘要
+- 从首页进入宠物档案、健康管理、日常护理
+
+### 已完成模块
+
+- 用户注册、登录、资料读取
+- 修改昵称、头像、密码、邮箱
+- 宠物档案新增、编辑、删除
+- 宠物生日、健康记录日期、护理计划日期统一使用日期选择器
+- 健康管理
+  - 疫苗记录
+  - 驱虫记录
+  - 体检记录
+  - 上传凭证图片
+  - OCR 识别回填
+  - 医院 / 医生信息录入
+- 日常护理
+  - `record / plan` 双模式
+  - 今日待办
+  - 一键完成
+  - 执行留痕
+- AI 助手
+  - 文本问答
+  - 图片理解
+  - 语音问答
+  - 历史对话
+  - 新建对话
+  - 对话可绑定宠物，也可不绑定
+- 社区
+  - 帖子、评论、我的内容
+  - 预约创建、取消、删除
+- 知识
+  - 分类、推荐、搜索、详情
+  - 后台推荐内容驱动
+
+## 管理端当前功能
+
+- 独立管理员登录
+- 数据分析工作台
+  - 概览统计
+  - 近 `7 / 30` 天趋势
+  - 近 7 天活跃摘要
+- 权限管理
+  - 管理员列表
+  - 新增管理员
+  - 改角色
+  - 启停用
+  - 重置密码
+- 用户管理
+- 内容管理
+  - 帖子
+  - 评论
+  - 分类
+  - 文章
+- 系统配置
+- 审计日志
+
+### 当前管理员角色
+
+- `super_admin`
+  - 全部权限
+- `content_admin`
+  - 内容审核与内容维护
+- `viewer_admin`
+  - 只读查看
+
+权限控制已经是“角色 + 权限点”模式，前后端都会做校验。
 
 ## AI 配置
 
-如果希望 AI 返回真实能力，需要在后端环境变量里设置：
+如果要启用真实 AI 能力，需要在 [backend/.env](/Users/caobingbing/workspace/pet-assistant-master-v1.0/backend/.env) 中配置：
 
 ```env
 DEEPSEEK_API_KEY=你的密钥
@@ -190,49 +217,95 @@ QWEN_VISION_MODEL=qwen3-vl-flash
 QWEN_AUDIO_MODEL=qwen3.5-omni-flash
 ```
 
-- `DEEPSEEK_API_KEY` 用于文本问答
-- `DEEPSEEK_BASE_URL` 和 `DEEPSEEK_TEXT_MODEL` 用于 DeepSeek 文本模型配置
-- `QWEN_API_KEY` 用于图片理解和语音转写
-- `QWEN_VISION_MODEL` 用于图片理解模型，默认按 `qwen3-vl-flash`
-- `QWEN_AUDIO_MODEL` 用于语音转写模型
-- 未配置时，前端仍可正常请求，但会收到明确的降级提示文本
+说明：
 
-当前 AI 架构固定为：
+- `DeepSeek`
+  - 文本问答
+- `Qwen Vision`
+  - 图片理解
+- `Qwen Audio`
+  - 语音转写
 
-- `POST /api/ai/chat` 走 `DeepSeek`
-- `POST /api/ai/image/analyze` 走 `Qwen Vision`
-- `POST /api/ai/audio/chat` 走 `Qwen Audio + DeepSeek`
+未配置时，前端仍可正常请求，但会收到清晰的降级提示。
 
-## 建议验证顺序
+## 局域网与真机测试
 
-1. 用户端注册新用户并登录
-2. 新增宠物，补一条疫苗、一条驱虫、一条体检、一条护理
-3. 也可以直接使用默认演示账号登录，检查首页今日待办、健康记录和社区内容是否已自动补齐
-4. 在健康页体验拍照识别，确认表单自动回填并可手动修正
-5. 创建一个护理计划，回到首页或护理页完成今日待办
-6. 进入 AI 助手发送快捷问题，再测试图片识别和语音问答
-7. 发一篇社区帖子并创建一条预约
-8. 打开知识百科做搜索并查看推荐用品内容
-9. 用管理员账号登录后台，查看概览、审核帖子/评论、维护文章推荐和系统配置
+### 局域网浏览器
 
-## 交付校验
+用户端和管理端会根据当前访问主机自动推断后端地址：
 
-构建与类型检查：
+- `8934 -> 4317`
+- `5617 -> 4317`
+
+例如手机访问：
+
+- `http://192.168.1.23:8934`
+- `http://192.168.1.23:5617`
+
+前端会自动请求：
+
+- `http://192.168.1.23:4317`
+
+### 录音说明
+
+手机浏览器录音通常要求 `HTTPS` 安全上下文。  
+如果通过局域网 `HTTP` 页面访问，浏览器可能直接拦截麦克风。
+
+建议：
+
+- 浏览器录音测试：使用 HTTPS
+- 真机录音测试：优先使用 Expo Go
+
+### Expo Go
+
+推荐命令：
+
+```bash
+npm run dev:user:native
+```
+
+这个脚本会尽量自动推断当前开发机局域网 IP，减少手动配 API 地址的成本。
+
+## 推荐测试顺序
+
+1. 登录演示账号或注册新用户
+2. 进入首页，确认主宠物信息与切换逻辑正常
+3. 进入宠物档案、健康管理、日常护理
+4. 新建一条疫苗 / 驱虫 / 体检记录，验证日期选择器
+5. 上传健康凭证图片，验证 OCR 回填
+6. 创建一条护理计划，验证今日待办和一键完成
+7. 进入 AI 助手，测试文本、图片、语音和历史对话
+8. 进入社区发帖、评论、预约
+9. 进入知识页搜索文章和查看推荐内容
+10. 登录管理端，查看数据分析、内容管理、权限管理
+
+## 构建与健康检查
+
+构建检查：
 
 ```bash
 npm run check:all
 ```
 
-运行中健康检查：
+运行中检查：
 
 ```bash
 npm run health:check
 ```
 
-其中会检查：
+默认会检查：
 
-- 后端根路由 `/`
-- 后端健康接口 `/health`
-- 知识分类接口 `/api/knowledge/categories`
-- 用户端 Web `8934`
-- 管理端 Web `5617`
+- `http://127.0.0.1:4317/`
+- `http://127.0.0.1:4317/health`
+- `http://127.0.0.1:4317/api/knowledge/categories`
+- `http://127.0.0.1:8934/`
+- `http://127.0.0.1:5617/`
+
+## 当前不包含
+
+以下内容目前不属于已完成交付：
+
+- 更复杂的 RBAC 配置台
+- 留存 / cohort / 多维筛选报表
+- 前端自动化测试体系
+- 生产级多实例部署编排

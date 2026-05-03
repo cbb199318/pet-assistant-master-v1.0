@@ -8,31 +8,87 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('dashboard/overview')
-  async getOverview() {
-    return this.adminService.getOverview();
+  async getOverview(@Req() req) {
+    return this.adminService.getOverview(req.user);
   }
 
   @Get('dashboard/trends')
-  async getTrends() {
-    return this.adminService.getTrends();
+  async getTrends(@Req() req) {
+    return this.adminService.getTrends(req.user);
+  }
+
+  @Get('admin-users')
+  async getAdminUsers(
+    @Query('keyword') keyword: string = '',
+    @Query('page') page: string = '1',
+    @Query('pageSize') pageSize: string = '10',
+    @Req() req,
+  ) {
+    return this.adminService.getAdminUsers(
+      {
+        keyword,
+        page: Number(page) || 1,
+        pageSize: Number(pageSize) || 10,
+      },
+      req.user,
+    );
+  }
+
+  @Post('admin-users')
+  async createAdminUser(
+    @Body() body: { username: string; password: string; role: string },
+    @Req() req,
+  ) {
+    return this.adminService.createAdminUser(body, req.user);
+  }
+
+  @Put('admin-users/:id/role')
+  async updateAdminUserRole(
+    @Param('id') id: string,
+    @Body() body: { role: string },
+    @Req() req,
+  ) {
+    return this.adminService.updateAdminUserRole(Number(id), body, req.user);
+  }
+
+  @Put('admin-users/:id/status')
+  async updateAdminUserStatus(
+    @Param('id') id: string,
+    @Body() body: { status: string },
+    @Req() req,
+  ) {
+    return this.adminService.updateAdminUserStatus(Number(id), body, req.user);
+  }
+
+  @Put('admin-users/:id/reset-password')
+  async resetAdminUserPassword(
+    @Param('id') id: string,
+    @Body() body: { password: string },
+    @Req() req,
+  ) {
+    return this.adminService.resetAdminUserPassword(Number(id), body, req.user);
   }
 
   @Get('users')
   async getUsers(
-    @Query('keyword') keyword?: string,
+    @Query('keyword') keyword: string = '',
     @Query('page') page: string = '1',
     @Query('pageSize') pageSize: string = '10',
+    @Req() req,
   ) {
-    return this.adminService.getUsers({
-      keyword,
-      page: Number(page) || 1,
-      pageSize: Number(pageSize) || 10,
-    });
+    return this.adminService.getUsers(
+      {
+        keyword,
+        page: Number(page) || 1,
+        pageSize: Number(pageSize) || 10,
+      },
+      req.user,
+    );
   }
 
   @Get('users/:id')
-  async getUserById(@Param('id') id: string) {
-    return this.adminService.getUserById(Number(id));
+  async getUserById(@Param('id') id: string, @Req() req) {
+    return this.adminService.getUserById(Number(id), req.user);
   }
 
   @Delete('users/:id')
@@ -42,20 +98,24 @@ export class AdminController {
 
   @Get('content/posts')
   async getPosts(
-    @Query('keyword') keyword?: string,
+    @Query('keyword') keyword: string = '',
     @Query('page') page: string = '1',
     @Query('pageSize') pageSize: string = '10',
+    @Req() req,
   ) {
-    return this.adminService.getPosts({
-      keyword,
-      page: Number(page) || 1,
-      pageSize: Number(pageSize) || 10,
-    });
+    return this.adminService.getPosts(
+      {
+        keyword,
+        page: Number(page) || 1,
+        pageSize: Number(pageSize) || 10,
+      },
+      req.user,
+    );
   }
 
   @Get('content/posts/:id')
-  async getPostById(@Param('id') id: string) {
-    return this.adminService.getPostById(Number(id));
+  async getPostById(@Param('id') id: string, @Req() req) {
+    return this.adminService.getPostById(Number(id), req.user);
   }
 
   @Delete('content/posts/:id')
@@ -74,20 +134,24 @@ export class AdminController {
 
   @Get('content/comments')
   async getComments(
-    @Query('keyword') keyword?: string,
+    @Query('keyword') keyword: string = '',
     @Query('page') page: string = '1',
     @Query('pageSize') pageSize: string = '10',
+    @Req() req,
   ) {
-    return this.adminService.getComments({
-      keyword,
-      page: Number(page) || 1,
-      pageSize: Number(pageSize) || 10,
-    });
+    return this.adminService.getComments(
+      {
+        keyword,
+        page: Number(page) || 1,
+        pageSize: Number(pageSize) || 10,
+      },
+      req.user,
+    );
   }
 
   @Get('content/comments/:id')
-  async getCommentById(@Param('id') id: string) {
-    return this.adminService.getCommentById(Number(id));
+  async getCommentById(@Param('id') id: string, @Req() req) {
+    return this.adminService.getCommentById(Number(id), req.user);
   }
 
   @Delete('content/comments/:id')
@@ -106,20 +170,24 @@ export class AdminController {
 
   @Get('content/categories')
   async getCategories(
-    @Query('keyword') keyword?: string,
+    @Query('keyword') keyword: string = '',
     @Query('page') page: string = '1',
     @Query('pageSize') pageSize: string = '10',
+    @Req() req,
   ) {
-    return this.adminService.getCategories({
-      keyword,
-      page: Number(page) || 1,
-      pageSize: Number(pageSize) || 10,
-    });
+    return this.adminService.getCategories(
+      {
+        keyword,
+        page: Number(page) || 1,
+        pageSize: Number(pageSize) || 10,
+      },
+      req.user,
+    );
   }
 
   @Get('content/categories/:id')
-  async getCategoryById(@Param('id') id: string) {
-    return this.adminService.getCategoryById(Number(id));
+  async getCategoryById(@Param('id') id: string, @Req() req) {
+    return this.adminService.getCategoryById(Number(id), req.user);
   }
 
   @Post('content/categories')
@@ -143,20 +211,24 @@ export class AdminController {
 
   @Get('content/articles')
   async getArticles(
-    @Query('keyword') keyword?: string,
+    @Query('keyword') keyword: string = '',
     @Query('page') page: string = '1',
     @Query('pageSize') pageSize: string = '10',
+    @Req() req,
   ) {
-    return this.adminService.getArticles({
-      keyword,
-      page: Number(page) || 1,
-      pageSize: Number(pageSize) || 10,
-    });
+    return this.adminService.getArticles(
+      {
+        keyword,
+        page: Number(page) || 1,
+        pageSize: Number(pageSize) || 10,
+      },
+      req.user,
+    );
   }
 
   @Get('content/articles/:id')
-  async getArticleById(@Param('id') id: string) {
-    return this.adminService.getArticleById(Number(id));
+  async getArticleById(@Param('id') id: string, @Req() req) {
+    return this.adminService.getArticleById(Number(id), req.user);
   }
 
   @Post('content/articles')
@@ -204,8 +276,8 @@ export class AdminController {
   }
 
   @Get('system/settings')
-  async getSystemSettings() {
-    return this.adminService.getSystemSettings();
+  async getSystemSettings(@Req() req) {
+    return this.adminService.getSystemSettings(req.user);
   }
 
   @Put('system/settings/:key')
@@ -219,20 +291,24 @@ export class AdminController {
 
   @Get('audit-logs')
   async getAuditLogs(
-    @Query('keyword') keyword?: string,
-    @Query('action') action?: string,
-    @Query('resource_type') resource_type?: string,
-    @Query('admin_username') admin_username?: string,
+    @Query('keyword') keyword: string = '',
+    @Query('action') action: string = '',
+    @Query('resource_type') resource_type: string = '',
+    @Query('admin_username') admin_username: string = '',
     @Query('page') page: string = '1',
     @Query('pageSize') pageSize: string = '10',
+    @Req() req,
   ) {
-    return this.adminService.getAuditLogs({
-      keyword,
-      action,
-      resource_type,
-      admin_username,
-      page: Number(page) || 1,
-      pageSize: Number(pageSize) || 10,
-    });
+    return this.adminService.getAuditLogs(
+      {
+        keyword,
+        action,
+        resource_type,
+        admin_username,
+        page: Number(page) || 1,
+        pageSize: Number(pageSize) || 10,
+      },
+      req.user,
+    );
   }
 }

@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ImageUploaderField from '../components/ImageUploaderField';
-import { getApiErrorMessage, userApi } from '../services/api';
+import { getApiErrorMessage, resolveMediaUrl, userApi } from '../services/api';
 
 type ModalMode = 'profile' | 'password' | 'email' | null;
 
@@ -28,7 +28,6 @@ const SettingsScreen = ({ navigation }: any) => {
   const [profileForm, setProfileForm] = useState({ nickname: '', avatar: '' });
   const [passwordForm, setPasswordForm] = useState({ oldPassword: '', newPassword: '' });
   const [email, setEmail] = useState('');
-  const canGoBack = navigation.canGoBack();
 
   const modalTitle = useMemo(() => {
     if (modalMode === 'profile') return '编辑个人信息';
@@ -213,21 +212,13 @@ const SettingsScreen = ({ navigation }: any) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        {canGoBack ? (
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
         <Text style={styles.title}>设置</Text>
-        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
         <View style={styles.profileCard}>
           {user?.avatar ? (
-            <Image source={{ uri: user.avatar }} style={styles.avatar} />
+            <Image source={{ uri: resolveMediaUrl(user.avatar) }} style={styles.avatar} />
           ) : (
             <View style={styles.avatarFallback}>
               <Text style={styles.avatarFallbackText}>{user?.nickname?.charAt(0) || '宠'}</Text>
@@ -321,20 +312,8 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  backButton: {
-    padding: 10,
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 24,

@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import * as bcrypt from 'bcryptjs';
 import { Brackets, DataSource, In, ObjectLiteral, Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { Pet } from '../pets/pet.entity';
@@ -13,6 +14,8 @@ import { Booking } from '../community/booking.entity';
 import { Article } from '../knowledge/article.entity';
 import { Category } from '../knowledge/category.entity';
 import { AdminAuditLog } from './admin-audit-log.entity';
+import { AdminUser } from './admin-user.entity';
+import { AdminPermission, AdminRole, getAdminPermissions, getRoleLabel, hasAdminPermission, isAdminRole } from './admin-permissions';
 import { SystemSetting } from './system-setting.entity';
 
 type AdminActor = {
@@ -64,6 +67,8 @@ const DEFAULT_SYSTEM_SETTINGS = [
 @Injectable()
 export class AdminService {
   constructor(
+    @InjectRepository(AdminUser)
+    private adminUserRepository: Repository<AdminUser>,
     @InjectRepository(User) private userRepository: Repository<User>,
     @InjectRepository(Pet) private petRepository: Repository<Pet>,
     @InjectRepository(Vaccination)
@@ -113,10 +118,31 @@ export class AdminService {
     };
   }
 
-  private assertSuperAdmin(actor: AdminActor) {
-    if (actor.role !== 'super_admin') {
+  private formatAdminSummary(adminUser: AdminUser) {
+    return {
+      id: adminUser.id,
+      username: adminUser.username,
+      role: adminUser.role,
+      role_label: getRoleLabel(adminUser.role),
+      permissions: getAdminPermissions(adminUser.role),
+      status: adminUser.status,
+      last_login_at: adminUser.last_login_at,
+      created_at: adminUser.created_at,
+      updated_at: adminUser.updated_at,
+    };
+  }
+
+  private assertPermission(actor: AdminActor, permission: AdminPermission) {
+    if (!hasAdminPermission(actor.role, permission)) {
       throw new ForbiddenException('当前管理员角色无权执行该操作');
     }
+  }
+
+  private ensureRole(role: string): AdminRole {
+    if (!isAdminRole(role)) {
+      throw new BadRequestException('管理员角色不合法');
+    }
+    return role;
   }
 
   private async logAdminAction(
@@ -276,7 +302,123 @@ export class AdminService {
     };
   }
 
-  async getOverview() {
+  async getAdminUsers(
+    params: { keyword?: string; page: number; pageSize: number },
+    actor: AdminActor,
+  ) {
+    this.assertPermission(actor, 'admin_users:view');
+    const { page, pageSize, skip } = this.buildPaging(params);
+    const queryBuilder = this.adminUserRepository.createQueryBuilder('admin_user');
+
+    if (params.keyword?.trim()) {
+      const keyword = `%${params.keyword.trim()}%`;
+      queryBuilder.where('admin_user.username LIKE :keyword', { keyword });
+    }
+
+    const [items, total] = await queryBuilder
+      .orderBy('admin_user.created_at', 'DESC')
+      .skip(skip)
+      .take(pageSize)
+      .getManyAndCount();
+
+    return {
+      items: items.map((item) => this.formatAdminSummary(item)),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  async createAdminUser(
+    data: { username: string; password: string; role: string },
+    actor: AdminActor,
+  ) {
+    this.assertPermission(actor, 'admin_users:create');
+    const username = data.username?.trim();
+    const password = data.password?.trim();
+    if (!username || !password) {
+      throw new BadRequestException('用户名和密码不能为空');
+    }
+
+    const role = this.ensureRole(data.role);
+    const existing = await this.adminUserRepository.findOne({
+      where: { username },
+    });
+    if (existing) {
+      throw new BadRequestException('管理员用户名已存在');
+    }
+
+    const saved = await this.adminUserRepository.save(
+      this.adminUserRepository.create({
+        username,
+        password: await bcrypt.hash(password, 10),
+        role,
+        status: 'active',
+      }),
+    );
+
+    await this.logAdminAction(actor, 'create_admin_user', 'admin_user', saved.id, `${saved.username} (${saved.role})`);
+
+    return this.formatAdminSummary(saved);
+  }
+
+  async updateAdminUserRole(id: number, data: { role: string }, actor: AdminActor) {
+    this.assertPermission(actor, 'admin_users:update_role');
+    const adminUser = await this.adminUserRepository.findOne({ where: { id } });
+    if (!adminUser) {
+      throw new NotFoundException('管理员不存在');
+    }
+    if (actor.adminId === id) {
+      throw new BadRequestException('不能修改当前登录管理员自己的角色');
+    }
+
+    const role = this.ensureRole(data.role);
+    adminUser.role = role;
+    const saved = await this.adminUserRepository.save(adminUser);
+    await this.logAdminAction(actor, 'update_admin_role', 'admin_user', id, `${saved.username} -> ${saved.role}`);
+    return this.formatAdminSummary(saved);
+  }
+
+  async updateAdminUserStatus(id: number, data: { status: string }, actor: AdminActor) {
+    this.assertPermission(actor, 'admin_users:update_status');
+    const adminUser = await this.adminUserRepository.findOne({ where: { id } });
+    if (!adminUser) {
+      throw new NotFoundException('管理员不存在');
+    }
+    if (actor.adminId === id) {
+      throw new BadRequestException('不能停用当前登录管理员自己');
+    }
+    if (!['active', 'disabled'].includes(data.status)) {
+      throw new BadRequestException('管理员状态不合法');
+    }
+
+    adminUser.status = data.status;
+    const saved = await this.adminUserRepository.save(adminUser);
+    await this.logAdminAction(actor, 'update_admin_status', 'admin_user', id, `${saved.username} -> ${saved.status}`);
+    return this.formatAdminSummary(saved);
+  }
+
+  async resetAdminUserPassword(id: number, data: { password: string }, actor: AdminActor) {
+    this.assertPermission(actor, 'admin_users:reset_password');
+    const adminUser = await this.adminUserRepository.findOne({ where: { id } });
+    if (!adminUser) {
+      throw new NotFoundException('管理员不存在');
+    }
+
+    const password = data.password?.trim();
+    if (!password) {
+      throw new BadRequestException('新密码不能为空');
+    }
+
+    adminUser.password = await bcrypt.hash(password, 10);
+    await this.adminUserRepository.save(adminUser);
+    await this.logAdminAction(actor, 'reset_admin_password', 'admin_user', id, adminUser.username);
+
+    return { message: '管理员密码已重置' };
+  }
+
+  async getOverview(actor: AdminActor) {
+    this.assertPermission(actor, 'dashboard:view');
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -335,7 +477,8 @@ export class AdminService {
     };
   }
 
-  async getTrends() {
+  async getTrends(actor: AdminActor) {
+    this.assertPermission(actor, 'dashboard:view');
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setHours(0, 0, 0, 0);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
@@ -362,7 +505,8 @@ export class AdminService {
     keyword?: string;
     page: number;
     pageSize: number;
-  }) {
+  }, actor: AdminActor) {
+    this.assertPermission(actor, 'users:view');
     const { page, pageSize, skip } = this.buildPaging(params);
     const queryBuilder = this.userRepository.createQueryBuilder('user');
 
@@ -392,7 +536,8 @@ export class AdminService {
     };
   }
 
-  async getUserById(id: number) {
+  async getUserById(id: number, actor: AdminActor) {
+    this.assertPermission(actor, 'users:view');
     const user = await this.userRepository.findOne({
       where: { id },
       relations: ['pets'],
@@ -435,7 +580,7 @@ export class AdminService {
   }
 
   async deleteUser(id: number, actor: AdminActor) {
-    this.assertSuperAdmin(actor);
+    this.assertPermission(actor, 'users:delete');
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) {
       throw new NotFoundException('用户不存在');
@@ -481,7 +626,8 @@ export class AdminService {
     };
   }
 
-  async getPosts(params: { keyword?: string; page: number; pageSize: number }) {
+  async getPosts(params: { keyword?: string; page: number; pageSize: number }, actor: AdminActor) {
+    this.assertPermission(actor, 'posts:view');
     const { page, pageSize, skip } = this.buildPaging(params);
     const queryBuilder = this.postRepository
       .createQueryBuilder('post')
@@ -522,7 +668,8 @@ export class AdminService {
     };
   }
 
-  async getPostById(id: number) {
+  async getPostById(id: number, actor: AdminActor) {
+    this.assertPermission(actor, 'posts:view');
     const post = await this.postRepository.findOne({
       where: { id },
       relations: ['user', 'commentList', 'commentList.user'],
@@ -553,6 +700,7 @@ export class AdminService {
   }
 
   async updatePostStatus(id: number, status: string, actor: AdminActor) {
+    this.assertPermission(actor, 'posts:review');
     const post = await this.postRepository.findOne({ where: { id } });
     if (!post) {
       throw new NotFoundException('帖子不存在');
@@ -564,7 +712,7 @@ export class AdminService {
   }
 
   async deletePost(id: number, actor: AdminActor) {
-    this.assertSuperAdmin(actor);
+    this.assertPermission(actor, 'posts:delete');
     const post = await this.postRepository.findOne({ where: { id } });
     if (!post) {
       throw new NotFoundException('帖子不存在');
@@ -577,7 +725,8 @@ export class AdminService {
     return { message: '帖子删除成功' };
   }
 
-  async getComments(params: { keyword?: string; page: number; pageSize: number }) {
+  async getComments(params: { keyword?: string; page: number; pageSize: number }, actor: AdminActor) {
+    this.assertPermission(actor, 'comments:view');
     const { page, pageSize, skip } = this.buildPaging(params);
     const queryBuilder = this.commentRepository
       .createQueryBuilder('comment')
@@ -622,7 +771,8 @@ export class AdminService {
     };
   }
 
-  async getCommentById(id: number) {
+  async getCommentById(id: number, actor: AdminActor) {
+    this.assertPermission(actor, 'comments:view');
     const comment = await this.commentRepository.findOne({
       where: { id },
       relations: ['user', 'post', 'post.user'],
@@ -651,6 +801,7 @@ export class AdminService {
   }
 
   async updateCommentStatus(id: number, status: string, actor: AdminActor) {
+    this.assertPermission(actor, 'comments:review');
     const comment = await this.commentRepository.findOne({ where: { id } });
     if (!comment) {
       throw new NotFoundException('评论不存在');
@@ -662,7 +813,7 @@ export class AdminService {
   }
 
   async deleteComment(id: number, actor: AdminActor) {
-    this.assertSuperAdmin(actor);
+    this.assertPermission(actor, 'comments:delete');
     const comment = await this.commentRepository.findOne({
       where: { id },
       relations: ['post'],
@@ -681,7 +832,8 @@ export class AdminService {
     return { message: '评论删除成功' };
   }
 
-  async getCategories(params: { keyword?: string; page: number; pageSize: number }) {
+  async getCategories(params: { keyword?: string; page: number; pageSize: number }, actor: AdminActor) {
+    this.assertPermission(actor, 'categories:view');
     const { page, pageSize, skip } = this.buildPaging(params);
     const queryBuilder = this.categoryRepository
       .createQueryBuilder('category')
@@ -719,7 +871,8 @@ export class AdminService {
     };
   }
 
-  async getCategoryById(id: number) {
+  async getCategoryById(id: number, actor: AdminActor) {
+    this.assertPermission(actor, 'categories:view');
     const category = await this.categoryRepository.findOne({
       where: { id },
       relations: ['articles'],
@@ -747,6 +900,7 @@ export class AdminService {
   }
 
   async createCategory(data: { name: string; description?: string }, actor: AdminActor) {
+    this.assertPermission(actor, 'categories:create');
     const category = this.categoryRepository.create(data);
     const saved = await this.categoryRepository.save(category);
     await this.logAdminAction(actor, 'create_category', 'category', saved.id, saved.name);
@@ -754,6 +908,7 @@ export class AdminService {
   }
 
   async updateCategory(id: number, data: { name?: string; description?: string }, actor: AdminActor) {
+    this.assertPermission(actor, 'categories:update');
     const category = await this.categoryRepository.findOne({ where: { id } });
     if (!category) {
       throw new NotFoundException('分类不存在');
@@ -765,7 +920,7 @@ export class AdminService {
   }
 
   async deleteCategory(id: number, actor: AdminActor) {
-    this.assertSuperAdmin(actor);
+    this.assertPermission(actor, 'categories:delete');
     const category = await this.categoryRepository.findOne({
       where: { id },
       relations: ['articles'],
@@ -782,7 +937,8 @@ export class AdminService {
     return { message: '分类删除成功' };
   }
 
-  async getArticles(params: { keyword?: string; page: number; pageSize: number }) {
+  async getArticles(params: { keyword?: string; page: number; pageSize: number }, actor: AdminActor) {
+    this.assertPermission(actor, 'articles:view');
     const { page, pageSize, skip } = this.buildPaging(params);
     const queryBuilder = this.articleRepository
       .createQueryBuilder('article')
@@ -833,7 +989,8 @@ export class AdminService {
     };
   }
 
-  async getArticleById(id: number) {
+  async getArticleById(id: number, actor: AdminActor) {
+    this.assertPermission(actor, 'articles:view');
     const article = await this.articleRepository.findOne({
       where: { id },
       relations: ['category'],
@@ -881,6 +1038,7 @@ export class AdminService {
     },
     actor: AdminActor,
   ) {
+    this.assertPermission(actor, 'articles:create');
     const category = await this.categoryRepository.findOne({
       where: { id: data.categoryId },
     });
@@ -920,6 +1078,7 @@ export class AdminService {
     },
     actor: AdminActor,
   ) {
+    this.assertPermission(actor, 'articles:update');
     const article = await this.articleRepository.findOne({
       where: { id },
       relations: ['category'],
@@ -955,7 +1114,7 @@ export class AdminService {
   }
 
   async deleteArticle(id: number, actor: AdminActor) {
-    this.assertSuperAdmin(actor);
+    this.assertPermission(actor, 'articles:delete');
     const article = await this.articleRepository.findOne({ where: { id } });
     if (!article) {
       throw new NotFoundException('文章不存在');
@@ -966,7 +1125,8 @@ export class AdminService {
     return { message: '文章删除成功' };
   }
 
-  async getSystemSettings() {
+  async getSystemSettings(actor: AdminActor) {
+    this.assertPermission(actor, 'settings:view');
     await this.ensureDefaultSystemSettings();
     const settings = await this.systemSettingRepository.find({
       order: {
@@ -982,7 +1142,7 @@ export class AdminService {
     data: { value?: string; label?: string; description?: string; group_name?: string },
     actor: AdminActor,
   ) {
-    this.assertSuperAdmin(actor);
+    this.assertPermission(actor, 'settings:update');
     await this.ensureDefaultSystemSettings();
     const setting = await this.systemSettingRepository.findOne({ where: { key } });
     if (!setting) {
@@ -1006,7 +1166,8 @@ export class AdminService {
     admin_username?: string;
     page: number;
     pageSize: number;
-  }) {
+  }, actor: AdminActor) {
+    this.assertPermission(actor, 'audit_logs:view');
     const { page, pageSize, skip } = this.buildPaging(params);
     const queryBuilder = this.adminAuditLogRepository.createQueryBuilder('log');
 

@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import DatePickerField from '../components/DatePickerField';
 import { useFocusEffect } from '@react-navigation/native';
 import { communityApi, getApiErrorMessage } from '../services/api';
 
@@ -42,8 +43,6 @@ const CommunityScreen = ({ navigation }: any) => {
     bookingTime: '',
     notes: '',
   });
-  const canGoBack = navigation.canGoBack();
-
   const fetchCommunityData = async () => {
     try {
       const [allPostResponse, myPostResponse, myCommentResponse, bookingResponse] = await Promise.all([
@@ -398,13 +397,6 @@ const CommunityScreen = ({ navigation }: any) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        {canGoBack ? (
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
         <Text style={styles.title}>社区</Text>
         <TouchableOpacity
           style={styles.composeButton}
@@ -511,12 +503,14 @@ const CommunityScreen = ({ navigation }: any) => {
             placeholder="服务地址"
           />
           <View style={styles.bookingDateRow}>
-            <TextInput
-              style={[styles.titleInput, styles.bookingDateInput]}
-              value={bookingForm.bookingDate}
-              onChangeText={(bookingDate) => setBookingForm((prev) => ({ ...prev, bookingDate }))}
-              placeholder="YYYY-MM-DD"
-            />
+            <View style={styles.bookingDateInput}>
+              <DatePickerField
+                value={bookingForm.bookingDate}
+                onChange={(bookingDate) => setBookingForm((prev) => ({ ...prev, bookingDate }))}
+                placeholder="请选择预约日期"
+                title="选择预约日期"
+              />
+            </View>
             <TextInput
               style={[styles.titleInput, styles.bookingDateInput]}
               value={bookingForm.bookingTime}
@@ -584,17 +578,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
   },
   title: {
     fontSize: 24,

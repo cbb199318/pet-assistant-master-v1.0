@@ -76,6 +76,26 @@ export const adminApi = {
     const response = await client.get('/api/admin/dashboard/trends');
     return response.data;
   },
+  getAdminUsers: async (params) => {
+    const response = await client.get('/api/admin/admin-users', { params });
+    return response.data;
+  },
+  createAdminUser: async (payload) => {
+    const response = await client.post('/api/admin/admin-users', payload);
+    return response.data;
+  },
+  updateAdminUserRole: async (id, role) => {
+    const response = await client.put(`/api/admin/admin-users/${id}/role`, { role });
+    return response.data;
+  },
+  updateAdminUserStatus: async (id, status) => {
+    const response = await client.put(`/api/admin/admin-users/${id}/status`, { status });
+    return response.data;
+  },
+  resetAdminUserPassword: async (id, password) => {
+    const response = await client.put(`/api/admin/admin-users/${id}/reset-password`, { password });
+    return response.data;
+  },
   getUsers: async (params) => {
     const response = await client.get('/api/admin/users', { params });
     return response.data;

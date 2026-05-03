@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
+import DatePickerField from '../components/DatePickerField';
 import { Feedback } from '../components/Feedback';
 import { careApi, getApiErrorMessage } from '../services/api';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -167,11 +168,11 @@ const AddCareScreen = () => {
 
         <View style={styles.formGroup}>
           <Text style={styles.label}>{mode === 'plan' ? '计划开始日期' : '日期'}</Text>
-          <TextInput
-            style={styles.input}
+          <DatePickerField
             value={date}
-            onChangeText={setDate}
-            placeholder="YYYY-MM-DD"
+            onChange={setDate}
+            placeholder={mode === 'plan' ? '请选择计划开始日期' : '请选择日期'}
+            title={mode === 'plan' ? '选择计划开始日期' : '选择日期'}
           />
         </View>
 

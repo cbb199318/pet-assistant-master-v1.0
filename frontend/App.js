@@ -50,8 +50,8 @@ function MainTabs() {
         tabBarIcon: ({ color }) => {
           const icons = {
             HomeTab: '⌂',
-            PetsTab: '♥',
             KnowledgeTab: '✦',
+            AiTab: '◉',
             CommunityTab: '◎',
             SettingsTab: '⚙',
           };
@@ -65,8 +65,8 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="HomeTab" component={HomeScreen} options={{ title: '首页' }} />
-      <Tab.Screen name="PetsTab" component={PetProfileScreen} options={{ title: '宠物' }} />
       <Tab.Screen name="KnowledgeTab" component={KnowledgeScreen} options={{ title: '知识' }} />
+      <Tab.Screen name="AiTab" component={AiAssistantScreen} options={{ title: 'AI助手' }} />
       <Tab.Screen name="CommunityTab" component={CommunityScreen} options={{ title: '交流' }} />
       <Tab.Screen name="SettingsTab" component={SettingsScreen} options={{ title: '我的' }} />
     </Tab.Navigator>
@@ -167,7 +167,6 @@ export default function App() {
         <Stack.Screen name="CareManagement" component={CareManagementScreen} />
         <Stack.Screen name="AddCare" component={AddCareScreen} />
         <Stack.Screen name="EditCare" component={AddCareScreen} />
-        <Stack.Screen name="AiAssistant" component={AiAssistantScreen} />
         <Stack.Screen name="PostDetail" component={PostDetailScreen} />
         <Stack.Screen name="ArticleDetail" component={ArticleDetailScreen} />
       </Stack.Navigator>

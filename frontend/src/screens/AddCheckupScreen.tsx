@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useForm, Controller } from 'react-hook-form';
+import DatePickerField from '../components/DatePickerField';
 import { Feedback } from '../components/Feedback';
 import ProviderQuickSelect from '../components/ProviderQuickSelect';
 import RecordImageUploader from '../components/RecordImageUploader';
@@ -191,8 +192,13 @@ const AddCheckupScreen = ({ navigation, route }: any) => {
               control={control}
               name="checkup_date"
               rules={{ required: '请输入体检日期' }}
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value} placeholder="YYYY-MM-DD" />
+              render={({ field: { onChange, value } }) => (
+                <DatePickerField
+                  value={value}
+                  onChange={onChange}
+                  placeholder="请选择体检日期"
+                  title="选择体检日期"
+                />
               )}
             />
             {errors.checkup_date && <Text style={styles.error}>{errors.checkup_date.message}</Text>}

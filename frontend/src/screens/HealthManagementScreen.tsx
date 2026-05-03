@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import PetAvatar from '../components/PetAvatar';
 import { getApiErrorMessage, healthApi, resolveMediaUrl } from '../services/api';
 
 const HealthManagementScreen = ({ navigation, route }: any) => {
@@ -92,10 +93,14 @@ const HealthManagementScreen = ({ navigation, route }: any) => {
       </View>
 
       <View style={styles.petInfo}>
-        <Text style={styles.petName}>{pet.name}</Text>
-        <Text style={styles.petDetails}>
-          {pet.species || '宠物'} · {pet.breed || '未知品种'}
-        </Text>
+        <PetAvatar pet={pet} size={80} />
+        <View style={styles.petInfoText}>
+          <Text style={styles.petName}>{pet.name}</Text>
+          <Text style={styles.petDetails}>
+            {[pet.species || '宠物', pet.breed || '未知品种'].filter(Boolean).join(' · ')}
+          </Text>
+          <Text style={styles.petHint}>这里集中管理这只宠物的疫苗、驱虫和体检记录。</Text>
+        </View>
       </View>
 
       {loading ? (
@@ -230,12 +235,19 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
   petInfo: {
     backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
+  petInfoText: {
+    flex: 1,
+    marginLeft: 16,
+  },
   petName: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 5 },
   petDetails: { fontSize: 14, color: '#666' },
+  petHint: { fontSize: 13, color: '#708076', marginTop: 8, lineHeight: 18 },
   loadingState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { flex: 1, minHeight: 0, padding: 20 },
   section: { marginBottom: 30 },

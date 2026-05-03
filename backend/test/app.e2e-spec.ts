@@ -40,6 +40,7 @@ describe('P2 delivery e2e', () => {
   let seededCommentId = 0;
   let createdCategoryId = 0;
   let createdArticleId = 0;
+  let viewerAdminToken = '';
   let superAdminToken = '';
   let contentAdminToken = '';
 
@@ -131,6 +132,9 @@ describe('P2 delivery e2e', () => {
 
     expect(superAdminLogin.admin.role).toBe('super_admin');
     expect(contentAdminLogin.admin.role).toBe('content_admin');
+    expect(superAdminLogin.admin.permissions).toContain('admin_users:create');
+    expect(contentAdminLogin.admin.permissions).toContain('posts:review');
+    expect(contentAdminLogin.admin.permissions).not.toContain('settings:update');
 
     const profileResponse = await request(app.getHttpServer())
       .get('/api/admin/auth/profile')
@@ -138,6 +142,7 @@ describe('P2 delivery e2e', () => {
       .expect(200);
 
     expect(profileResponse.body.admin.role).toBe('content_admin');
+    expect(profileResponse.body.admin.permissions).toContain('audit_logs:view');
   });
 
   it('content admin should audit content and be blocked from dangerous actions', async () => {
@@ -212,6 +217,11 @@ describe('P2 delivery e2e', () => {
       .set('Authorization', `Bearer ${contentAdminToken}`)
       .expect(403);
 
+    await request(app.getHttpServer())
+      .get('/api/admin/admin-users')
+      .set('Authorization', `Bearer ${contentAdminToken}`)
+      .expect(403);
+
     const auditResponse = await request(app.getHttpServer())
       .get('/api/admin/audit-logs')
       .set('Authorization', `Bearer ${contentAdminToken}`)
@@ -254,6 +264,72 @@ describe('P2 delivery e2e', () => {
       .expect(200);
 
     expect(auditResponse.body.items.length).toBeGreaterThan(0);
+
+    const createdAdminResponse = await request(app.getHttpServer())
+      .post('/api/admin/admin-users')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({
+        username: 'viewer-admin-e2e',
+        password: 'viewer-admin-pass',
+        role: 'viewer_admin',
+      })
+      .expect(201);
+
+    expect(createdAdminResponse.body.role).toBe('viewer_admin');
+    expect(createdAdminResponse.body.permissions).toContain('admin_users:view');
+
+    const adminListResponse = await request(app.getHttpServer())
+      .get('/api/admin/admin-users')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(200);
+
+    const viewerAdmin = adminListResponse.body.items.find((item) => item.username === 'viewer-admin-e2e');
+    expect(viewerAdmin).toBeDefined();
+
+    await request(app.getHttpServer())
+      .put(`/api/admin/admin-users/${viewerAdmin.id}/reset-password`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ password: 'viewer-admin-pass-2' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .put(`/api/admin/admin-users/${viewerAdmin.id}/status`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ status: 'disabled' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post('/api/admin/auth/login')
+      .send({ username: 'viewer-admin-e2e', password: 'viewer-admin-pass-2' })
+      .expect(409);
+
+    await request(app.getHttpServer())
+      .put(`/api/admin/admin-users/${viewerAdmin.id}/status`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ status: 'active' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .put(`/api/admin/admin-users/${viewerAdmin.id}/role`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ role: 'viewer_admin' })
+      .expect(200);
+
+    const viewerLogin = await loginAdmin('viewer-admin-e2e', 'viewer-admin-pass-2');
+    viewerAdminToken = viewerLogin.token;
+    expect(viewerLogin.admin.permissions).toContain('dashboard:view');
+    expect(viewerLogin.admin.permissions).not.toContain('posts:review');
+
+    await request(app.getHttpServer())
+      .get('/api/admin/admin-users')
+      .set('Authorization', `Bearer ${viewerAdminToken}`)
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .put('/api/admin/system/settings/ai_shortcuts_enabled')
+      .set('Authorization', `Bearer ${viewerAdminToken}`)
+      .send({ value: 'true' })
+      .expect(403);
 
     await request(app.getHttpServer())
       .delete(`/api/admin/content/articles/${createdArticleId}`)

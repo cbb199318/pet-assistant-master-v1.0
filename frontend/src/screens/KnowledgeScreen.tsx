@@ -21,7 +21,6 @@ const KnowledgeScreen = ({ navigation }: any) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | number>('all');
   const [loading, setLoading] = useState(true);
-  const canGoBack = navigation.canGoBack();
 
   const loadBaseData = async () => {
     try {
@@ -122,15 +121,7 @@ const KnowledgeScreen = ({ navigation }: any) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        {canGoBack ? (
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
         <Text style={styles.title}>知识百科</Text>
-        <View style={styles.headerSpacer} />
       </View>
 
       <View style={styles.searchContainer}>
@@ -150,14 +141,22 @@ const KnowledgeScreen = ({ navigation }: any) => {
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>推荐文章</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalCardsRow}
+          >
             {recommendedArticles.map((article) => renderArticleCard(article, true))}
           </ScrollView>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>用品推荐与护理要点</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalCardsRow}
+          >
             {recommendedProducts.length === 0 ? (
               <View style={styles.productCard}>
                 <Text style={styles.productTitle}>推荐内容筹备中</Text>
@@ -276,25 +275,13 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
-  },
-  backButton: {
-    padding: 10,
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
   },
   searchContainer: {
     flexDirection: 'row',
@@ -336,8 +323,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 12,
   },
+  horizontalCardsRow: {
+    paddingRight: 16,
+  },
   recommendedCard: {
-    width: 180,
+    width: 156,
     marginLeft: 16,
     backgroundColor: '#fff',
     borderRadius: 14,
@@ -350,19 +340,22 @@ const styles = StyleSheet.create({
   },
   recommendedImage: {
     width: '100%',
-    height: 110,
+    height: 92,
   },
   recommendedTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: '#243029',
-    padding: 12,
-    lineHeight: 20,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 12,
+    lineHeight: 18,
   },
   productCard: {
-    width: 220,
+    width: 188,
     marginLeft: 16,
-    padding: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     borderRadius: 14,
     backgroundColor: '#ffffff',
     shadowColor: '#000',
@@ -372,18 +365,18 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   productTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#243029',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   productDescription: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64736b',
-    lineHeight: 20,
+    lineHeight: 18,
   },
   productMeta: {
-    marginTop: 10,
+    marginTop: 8,
     fontSize: 12,
     color: '#4CAF50',
     fontWeight: '600',

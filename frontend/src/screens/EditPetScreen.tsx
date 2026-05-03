@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Switch } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
+import DatePickerField from '../components/DatePickerField';
 import ImageUploaderField from '../components/ImageUploaderField';
 import { getApiErrorMessage, petApi } from '../services/api';
 
@@ -138,13 +139,13 @@ const EditPetScreen = ({ navigation, route }: any) => {
             <Controller
               control={control}
               name="birthday"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={styles.input}
-                  onBlur={onBlur}
-                  onChangeText={onChange}
+              render={({ field: { onChange, value } }) => (
+                <DatePickerField
                   value={value}
-                  placeholder="YYYY-MM-DD"
+                  onChange={onChange}
+                  placeholder="请选择生日"
+                  title="选择宠物生日"
+                  allowClear
                 />
               )}
             />

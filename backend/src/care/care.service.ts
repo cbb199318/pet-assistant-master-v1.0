@@ -150,16 +150,13 @@ export class CareService {
   }
 
   async getCareById(id: number, user_id: number): Promise<Care> {
-    const care = await this.careRepository
-      .createQueryBuilder('care')
-      .leftJoinAndSelect('care.pet', 'pet')
-      .where('care.id = :id', { id })
-      .andWhere('pet.user_id = :userId', { userId: user_id })
-      .getOne();
+    const care = await this.careRepository.findOne({ where: { id } });
 
     if (!care) {
       throw new NotFoundException('Care record not found');
     }
+
+    care.pet = await this.petService.getPetById(care.pet_id, user_id);
     return care;
   }
 

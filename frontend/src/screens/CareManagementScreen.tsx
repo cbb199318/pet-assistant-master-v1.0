@@ -8,12 +8,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { careApi, getApiErrorMessage } from '../services/api';
+import PetAvatar from '../components/PetAvatar';
+import { careApi, getApiErrorMessage, type PetSummary } from '../services/api';
 
 const CareManagementScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { pet } = route.params as { pet: { id: number; name: string } };
+  const { pet } = route.params as { pet: PetSummary };
   const [cares, setCares] = useState<any[]>([]);
   const [todayPlans, setTodayPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -190,6 +191,17 @@ const CareManagementScreen = () => {
         </View>
       </View>
 
+      <View style={styles.petInfoCard}>
+        <PetAvatar pet={pet} size={80} />
+        <View style={styles.petInfoText}>
+          <Text style={styles.petName}>{pet.name}</Text>
+          <Text style={styles.petMeta}>
+            {[pet.species || '宠物', pet.breed || '未知品种'].filter(Boolean).join(' · ')}
+          </Text>
+          <Text style={styles.petHint}>这里集中查看这只宠物的护理计划、今日待办和历史留痕。</Text>
+        </View>
+      </View>
+
       {loading ? (
         <View style={styles.loadingContainer}>
           <Text>加载中...</Text>
@@ -312,6 +324,35 @@ const styles = StyleSheet.create({
   },
   secondaryAddButtonText: {
     color: '#fff',
+  },
+  petInfoCard: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e8eeea',
+  },
+  petInfoText: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  petName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#243029',
+    marginBottom: 5,
+  },
+  petMeta: {
+    fontSize: 14,
+    color: '#627065',
+    marginBottom: 6,
+  },
+  petHint: {
+    fontSize: 13,
+    color: '#728077',
+    lineHeight: 18,
   },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },

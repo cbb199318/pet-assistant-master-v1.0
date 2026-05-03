@@ -6,6 +6,7 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -14,7 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
@@ -30,7 +31,9 @@ import {
   petApi,
   resolveMediaUrl,
 } from '../services/api';
+import PetAvatar from '../components/PetAvatar';
 import { useVoiceRecorder, type PendingAudioDraft } from '../hooks/useVoiceRecorder';
+import { resolvePrimaryPet } from '../utils/primaryPet';
 
 const welcomeMessage: AiConversationMessage = {
   role: 'assistant',
@@ -39,14 +42,28 @@ const welcomeMessage: AiConversationMessage = {
     '你好，我是你的宠物助手。你可以直接问我宠物健康、护理、饮食和行为问题，也可以上传图片或录一段语音让我帮你识别。',
 };
 
-const SHORTCUT_PROMPTS = [
-  '帮我看看最近疫苗还需要补什么',
-  '驱虫应该多久做一次更合适',
-  '今天喂食量怎么安排比较稳妥',
-  '宠物精神不好要先观察什么症状',
-];
-
 const MIN_AUDIO_FILE_SIZE = 1024;
+
+const hasDirectMediaScheme = (value?: string) =>
+  Boolean(
+    value &&
+      (/^https?:\/\//i.test(value) ||
+        value.startsWith('data:') ||
+        value.startsWith('file:') ||
+        value.startsWith('blob:') ||
+        value.startsWith('content:') ||
+        value.startsWith('ph:') ||
+        value.startsWith('asset-library:') ||
+        value.startsWith('assets-library:')),
+  );
+
+const getPlayableAudioUri = (value?: string) => {
+  if (!value) {
+    return '';
+  }
+
+  return hasDirectMediaScheme(value) ? value : resolveMediaUrl(value);
+};
 
 const getAudioFileExtension = (mimeType: string) => {
   if (mimeType.includes('mp4')) {
@@ -65,8 +82,8 @@ const isFallbackMessage = (content?: string) =>
   Boolean(content && /(暂未配置|无法提供|稍后再试)/.test(content));
 
 const AiAssistantScreen = () => {
-  const navigation = useNavigation();
   const flatListRef = useRef<FlatList>(null);
+  const hasResolvedInitialPetRef = useRef(false);
   const voiceRecorder = useVoiceRecorder();
   const audioPlayer = useAudioPlayer(null);
   const audioPlayerStatus = useAudioPlayerStatus(audioPlayer);
@@ -85,12 +102,29 @@ const AiAssistantScreen = () => {
   const [activeAudioUrl, setActiveAudioUrl] = useState<string | null>(null);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [inputMode, setInputMode] = useState<'text' | 'voice'>('text');
+  const [historyModalVisible, setHistoryModalVisible] = useState(false);
+  const [petSelectorVisible, setPetSelectorVisible] = useState(false);
   const isWebVoiceMode = Platform.OS === 'web' && inputMode === 'voice';
   const webRecordingUnavailableReason = voiceRecorder.recordingUnavailableReason;
 
   const displayMessages = useMemo(
     () => (messages.length > 0 ? messages : [welcomeMessage]),
     [messages],
+  );
+
+  const stopAudioPlayback = useCallback(
+    (clearActiveUrl: boolean = true) => {
+      try {
+        audioPlayer.pause();
+      } catch {}
+
+      audioPlayer.seekTo(0).catch(() => {});
+
+      if (clearActiveUrl) {
+        setActiveAudioUrl(null);
+      }
+    },
+    [audioPlayer],
   );
 
   const loadConversations = async (preferredConversationId?: number | null) => {
@@ -113,16 +147,28 @@ const AiAssistantScreen = () => {
       const response = await petApi.getPets();
       setPets(response);
 
-      if (preferredPetId) {
-        setSelectedPet(response.find((pet) => pet.id === preferredPetId) || null);
+      if (preferredPetId !== undefined) {
+        setSelectedPet(
+          preferredPetId === null
+            ? null
+            : response.find((pet) => pet.id === preferredPetId) || null,
+        );
+        hasResolvedInitialPetRef.current = true;
         return;
       }
 
-      setSelectedPet((currentPet) => {
+      if (!hasResolvedInitialPetRef.current) {
+        const primaryPet = await resolvePrimaryPet(response);
+        setSelectedPet(primaryPet);
+        hasResolvedInitialPetRef.current = true;
+        return;
+      }
+
+      setSelectedPet((currentPet: PetSummary | null) => {
         if (!currentPet) {
           return currentPet;
         }
-        return response.find((pet) => pet.id === currentPet.id) || null;
+        return response.find((pet) => pet.id === currentPet.id) || response[0] || null;
       });
     } catch (error: any) {
       Alert.alert('错误', getApiErrorMessage(error, '获取宠物档案失败'));
@@ -133,6 +179,7 @@ const AiAssistantScreen = () => {
 
   const loadConversationDetail = async (conversationId: number) => {
     setDetailLoading(true);
+    stopAudioPlayback();
     try {
       const response = await aiApi.getConversationDetail(conversationId);
       setActiveConversationId(response.id);
@@ -140,6 +187,7 @@ const AiAssistantScreen = () => {
       setSelectedPet(response.pet || null);
       setPendingImage(null);
       setPendingAudio(null);
+      setHistoryModalVisible(false);
     } catch (error: any) {
       Alert.alert('错误', getApiErrorMessage(error, '获取会话详情失败'));
     } finally {
@@ -167,15 +215,14 @@ const AiAssistantScreen = () => {
   useEffect(() => {
     if (audioPlayerStatus.didJustFinish) {
       setActiveAudioUrl(null);
-      audioPlayer.seekTo(0).catch(() => {});
     }
-  }, [audioPlayer, audioPlayerStatus.didJustFinish]);
+  }, [audioPlayerStatus.didJustFinish]);
 
   useEffect(() => {
     return () => {
-      audioPlayer.pause();
+      stopAudioPlayback();
     };
-  }, [audioPlayer]);
+  }, [stopAudioPlayback]);
 
   const formatDuration = (seconds: number) => {
     const safeSeconds = Math.max(0, Math.round(seconds));
@@ -185,6 +232,7 @@ const AiAssistantScreen = () => {
   };
 
   const handleStartNewConversation = () => {
+    stopAudioPlayback();
     setActiveConversationId(null);
     setMessages([]);
     setInputText('');
@@ -192,14 +240,7 @@ const AiAssistantScreen = () => {
     setPendingAudio(null);
     setShowAttachmentMenu(false);
     setInputMode('text');
-  };
-
-  const handleShortcutPress = (prompt: string) => {
-    setPendingImage(null);
-    setPendingAudio(null);
-    setInputMode('text');
-    setInputText(prompt);
-    setShowAttachmentMenu(false);
+    setHistoryModalVisible(false);
   };
 
   const toggleInputMode = () => {
@@ -242,6 +283,7 @@ const AiAssistantScreen = () => {
     const currentPetId = selectedPet?.id || null;
     const nextPetId = nextPet?.id || null;
     if (currentPetId === nextPetId) {
+      setPetSelectorVisible(false);
       return;
     }
 
@@ -256,6 +298,7 @@ const AiAssistantScreen = () => {
             onPress: () => {
               handleStartNewConversation();
               setSelectedPet(nextPet);
+              setPetSelectorVisible(false);
             },
           },
         ],
@@ -264,6 +307,7 @@ const AiAssistantScreen = () => {
     }
 
     setSelectedPet(nextPet);
+    setPetSelectorVisible(false);
   };
 
   const pickImage = async () => {
@@ -323,7 +367,7 @@ const AiAssistantScreen = () => {
 
   const toggleAudioPlayback = async (uri: string) => {
     try {
-      const normalizedUri = resolveMediaUrl(uri);
+      const normalizedUri = getPlayableAudioUri(uri);
       if (!normalizedUri) {
         return;
       }
@@ -337,7 +381,7 @@ const AiAssistantScreen = () => {
         return;
       }
 
-      audioPlayer.pause();
+      stopAudioPlayback(false);
       audioPlayer.replace(normalizedUri);
       setActiveAudioUrl(normalizedUri);
       audioPlayer.play();
@@ -585,14 +629,14 @@ const AiAssistantScreen = () => {
   };
 
   const renderMessage = ({ item }: { item: AiConversationMessage }) => {
-    const messageAudioUrl = item.audioUrl ? resolveMediaUrl(item.audioUrl) : '';
+    const messageAudioUrl = getPlayableAudioUri(item.audioUrl);
     const isActiveAudio =
       item.type === 'audio' &&
       Boolean(messageAudioUrl) &&
       activeAudioUrl === messageAudioUrl &&
       audioPlayerStatus.playing;
 
-    const ttsAudioUrl = item.responseAudioUrl ? resolveMediaUrl(item.responseAudioUrl) : '';
+    const ttsAudioUrl = getPlayableAudioUri(item.responseAudioUrl);
     const isActiveTts =
       Boolean(ttsAudioUrl) &&
       activeAudioUrl === ttsAudioUrl &&
@@ -636,7 +680,7 @@ const AiAssistantScreen = () => {
           {item.content}
         </Text>
         {item.role === 'assistant' && isFallbackMessage(item.content) ? (
-          <Text style={styles.messageHintText}>可先体验快捷问题、图片上传与语音播报界面，配置外部 Key 后即可返回真实 AI 结果。</Text>
+          <Text style={styles.messageHintText}>可先体验图片上传、语音输入与语音播报界面，配置外部 Key 后即可返回真实 AI 结果。</Text>
         ) : null}
         {item.role === 'assistant' && ttsAudioUrl ? (
           <TouchableOpacity
@@ -664,166 +708,33 @@ const AiAssistantScreen = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
         <Text style={styles.title}>AI 宠物助手</Text>
-        <TouchableOpacity style={styles.newChatButton} onPress={handleStartNewConversation}>
-          <Text style={styles.newChatButtonText}>新对话</Text>
+        <TouchableOpacity
+          style={styles.headerActionButton}
+          onPress={() => setHistoryModalVisible(true)}
+        >
+          <Text style={styles.headerActionButtonText}>对话历史</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.historySection}>
-        <View style={styles.historyHeader}>
-          <Text style={styles.historyTitle}>会话历史</Text>
-          {detailLoading ? <ActivityIndicator size="small" color="#4CAF50" /> : null}
+      <View style={styles.contextBar}>
+        <View style={styles.contextInfo}>
+          <Text style={styles.contextLabel}>宠物档案联动</Text>
+          <Text style={styles.contextValue}>
+            {selectedPet
+              ? `${selectedPet.name} · ${selectedPetDescription}`
+              : '通用问题 · 不绑定自己的宠物档案'}
+          </Text>
         </View>
-        {historyLoading ? (
-          <View style={styles.historyLoading}>
-            <ActivityIndicator size="small" color="#4CAF50" />
-          </View>
-        ) : (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.historyList}
-          >
-            <TouchableOpacity
-              style={[
-                styles.historyChip,
-                activeConversationId === null && styles.historyChipActive,
-              ]}
-              onPress={handleStartNewConversation}
-            >
-              <Text
-                style={[
-                  styles.historyChipText,
-                  activeConversationId === null && styles.historyChipTextActive,
-                ]}
-              >
-                当前新对话
-              </Text>
-            </TouchableOpacity>
-
-            {conversations.map((conversation) => (
-              <View
-                key={conversation.id}
-                style={[
-                  styles.historyChip,
-                  activeConversationId === conversation.id && styles.historyChipActive,
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.historyChipMain}
-                  onPress={() => loadConversationDetail(conversation.id)}
-                >
-                  <Text
-                    numberOfLines={1}
-                    style={[
-                      styles.historyChipText,
-                      activeConversationId === conversation.id && styles.historyChipTextActive,
-                    ]}
-                  >
-                    {conversation.title}
-                  </Text>
-                  <Text
-                    numberOfLines={1}
-                    style={[
-                      styles.historyChipSubText,
-                      activeConversationId === conversation.id && styles.historyChipSubTextActive,
-                    ]}
-                  >
-                    {conversation.pet?.name
-                      ? `${conversation.pet.name} · ${conversation.lastMessagePreview || '暂无内容'}`
-                      : conversation.lastMessagePreview || '暂无内容'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.historyDeleteButton}
-                  onPress={() => handleDeleteConversation(conversation.id)}
-                >
-                  <Text style={styles.historyDeleteButtonText}>×</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
-        )}
-      </View>
-
-      <View style={styles.petContextSection}>
-        <View style={styles.petContextHeader}>
-          <Text style={styles.petContextTitle}>宠物档案联动</Text>
-          {petsLoading ? <ActivityIndicator size="small" color="#4CAF50" /> : null}
-        </View>
-        <Text style={styles.petContextSubtitle}>
-          {selectedPet
-            ? `当前咨询：${selectedPet.name} · ${selectedPetDescription}`
-            : selectedPetDescription}
-        </Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.petChipList}
+        <TouchableOpacity
+          style={styles.switchButton}
+          activeOpacity={0.88}
+          onPress={() => setPetSelectorVisible(true)}
         >
-          <TouchableOpacity
-            style={[styles.petChip, !selectedPet && styles.petChipActive]}
-            onPress={() => applyPetSelection(null)}
-          >
-            <Text style={[styles.petChipText, !selectedPet && styles.petChipTextActive]}>
-              通用问题
-            </Text>
-          </TouchableOpacity>
-          {pets.map((pet) => (
-            <TouchableOpacity
-              key={pet.id}
-              style={[
-                styles.petChip,
-                selectedPet?.id === pet.id && styles.petChipActive,
-              ]}
-              onPress={() => applyPetSelection(pet)}
-            >
-              <Text
-                style={[
-                  styles.petChipText,
-                  selectedPet?.id === pet.id && styles.petChipTextActive,
-                ]}
-              >
-                {pet.name}
-              </Text>
-              <Text
-                style={[
-                  styles.petChipMetaText,
-                  selectedPet?.id === pet.id && styles.petChipMetaTextActive,
-                ]}
-              >
-                {pet.species}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      <View style={styles.shortcutSection}>
-        <Text style={styles.shortcutTitle}>快捷提问</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.shortcutList}
-        >
-          {SHORTCUT_PROMPTS.map((prompt) => (
-            <TouchableOpacity
-              key={prompt}
-              style={styles.shortcutChip}
-              onPress={() => handleShortcutPress(prompt)}
-            >
-              <Text style={styles.shortcutChipText}>{prompt}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        <View style={styles.noticeCard}>
-          <Text style={styles.noticeTitle}>服务说明</Text>
-          <Text style={styles.noticeText}>已支持文字问答、图片识别、语音输入和语音播报。若后端未配置外部 AI Key，页面会直接提示原因，方便演示与排查。</Text>
-        </View>
+          <Text style={styles.switchButtonText}>
+            {petsLoading ? '加载中...' : selectedPet ? '切换宠物' : '选择宠物'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -869,7 +780,8 @@ const AiAssistantScreen = () => {
               onPress={() => void toggleAudioPlayback(pendingAudio.uri)}
             >
               <Text style={styles.pendingAudioPlayText}>
-                {activeAudioUrl === resolveMediaUrl(pendingAudio.uri) && audioPlayerStatus.playing
+                {activeAudioUrl === getPlayableAudioUri(pendingAudio.uri) &&
+                audioPlayerStatus.playing
                   ? `暂停预听 ${formatDuration(audioPlayerStatus.currentTime)}`
                   : '播放预听'}
               </Text>
@@ -1064,6 +976,204 @@ const AiAssistantScreen = () => {
           <Text style={styles.recordingHintText}>{webRecordingUnavailableReason}</Text>
         </View>
       ) : null}
+
+      <Modal
+        visible={historyModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setHistoryModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setHistoryModalVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.historyPanel}
+            onPress={() => {}}
+          >
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.historyPanelTitle}>对话历史</Text>
+                <Text style={styles.historyPanelHint}>在这里切换历史会话，或新建一段新的聊天。</Text>
+              </View>
+              {detailLoading ? <ActivityIndicator size="small" color="#4CAF50" /> : null}
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.historyPanelContent}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.historyListItem,
+                  activeConversationId === null && styles.historyListItemActive,
+                ]}
+                activeOpacity={0.88}
+                onPress={handleStartNewConversation}
+              >
+                <View style={styles.historyListItemBody}>
+                  <Text
+                    style={[
+                      styles.historyListItemTitle,
+                      activeConversationId === null && styles.historyListItemTitleActive,
+                    ]}
+                  >
+                    新建聊天
+                  </Text>
+                  <Text
+                    style={[
+                      styles.historyListItemSubtitle,
+                      activeConversationId === null && styles.historyListItemSubtitleActive,
+                    ]}
+                  >
+                    清空当前消息，按新的宠物上下文重新开始。
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.historyListItemAction,
+                    activeConversationId === null && styles.historyListItemActionActive,
+                  ]}
+                >
+                  {activeConversationId === null ? '当前' : '进入'}
+                </Text>
+              </TouchableOpacity>
+
+              {historyLoading ? (
+                <View style={styles.historyLoading}>
+                  <ActivityIndicator size="small" color="#4CAF50" />
+                </View>
+              ) : conversations.length > 0 ? (
+                conversations.map((conversation) => (
+                  <View
+                    key={conversation.id}
+                    style={[
+                      styles.historyListItem,
+                      activeConversationId === conversation.id && styles.historyListItemActive,
+                    ]}
+                  >
+                    <TouchableOpacity
+                      style={styles.historyListItemBody}
+                      activeOpacity={0.88}
+                      onPress={() => void loadConversationDetail(conversation.id)}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        style={[
+                          styles.historyListItemTitle,
+                          activeConversationId === conversation.id &&
+                            styles.historyListItemTitleActive,
+                        ]}
+                      >
+                        {conversation.title}
+                      </Text>
+                      <Text
+                        numberOfLines={2}
+                        style={[
+                          styles.historyListItemSubtitle,
+                          activeConversationId === conversation.id &&
+                            styles.historyListItemSubtitleActive,
+                        ]}
+                      >
+                        {conversation.pet?.name
+                          ? `${conversation.pet.name} · ${conversation.lastMessagePreview || '暂无内容'}`
+                          : conversation.lastMessagePreview || '暂无内容'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.historyDeleteButton}
+                      onPress={() => handleDeleteConversation(conversation.id)}
+                    >
+                      <Text style={styles.historyDeleteButtonText}>删除</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.historyEmptyState}>
+                  <Text style={styles.historyEmptyTitle}>还没有历史对话</Text>
+                  <Text style={styles.historyEmptyText}>发出第一条消息后，这里就会自动保存聊天记录。</Text>
+                </View>
+              )}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal
+        visible={petSelectorVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPetSelectorVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setPetSelectorVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={styles.switcherPanel}
+            onPress={() => {}}
+          >
+            <Text style={styles.switcherTitle}>宠物档案联动</Text>
+            <Text style={styles.switcherHint}>默认跟随首页主宠物，也可以改成通用问题，不绑定自己的宠物。</Text>
+
+            <TouchableOpacity
+              style={[styles.petOptionRow, !selectedPet && styles.petOptionRowActive]}
+              activeOpacity={0.88}
+              onPress={() => applyPetSelection(null)}
+            >
+              <View style={styles.generalPetBadge}>
+                <Text style={styles.generalPetBadgeText}>通用</Text>
+              </View>
+              <View style={styles.petOptionInfo}>
+                <Text style={styles.petOptionName}>不选择自己的宠物</Text>
+                <Text style={styles.petOptionMeta}>适合咨询通用的健康、护理和喂养问题。</Text>
+              </View>
+              <Text
+                style={[
+                  styles.petOptionState,
+                  !selectedPet && styles.petOptionStateActive,
+                ]}
+              >
+                {!selectedPet ? '当前' : '切换'}
+              </Text>
+            </TouchableOpacity>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {pets.map((pet) => (
+                <TouchableOpacity
+                  key={pet.id}
+                  style={[
+                    styles.petOptionRow,
+                    selectedPet?.id === pet.id && styles.petOptionRowActive,
+                  ]}
+                  activeOpacity={0.88}
+                  onPress={() => applyPetSelection(pet)}
+                >
+                  <PetAvatar pet={pet} size={52} />
+                  <View style={styles.petOptionInfo}>
+                    <Text style={styles.petOptionName}>{pet.name}</Text>
+                    <Text style={styles.petOptionMeta}>
+                      {[pet.species, pet.breed || '未知品种'].filter(Boolean).join(' · ')}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.petOptionState,
+                      selectedPet?.id === pet.id && styles.petOptionStateActive,
+                    ]}
+                  >
+                    {selectedPet?.id === pet.id ? '当前' : '切换'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -1088,202 +1198,59 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
-  backButton: {
-    padding: 10,
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  newChatButton: {
+  headerActionButton: {
     backgroundColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
   },
-  newChatButtonText: {
+  headerActionButtonText: {
     color: '#fff',
     fontWeight: '700',
+    fontSize: 13,
   },
-  historySection: {
+  contextBar: {
     backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#ecefec',
-    paddingVertical: 12,
-  },
-  historyHeader: {
+    borderBottomColor: '#e6eee8',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 12,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 10,
+    alignItems: 'flex-start',
   },
-  historyTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#243029',
+  contextInfo: {
+    flex: 1,
+    paddingRight: 12,
   },
-  historyLoading: {
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  historyList: {
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  historyChip: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    backgroundColor: '#edf2ee',
-    borderRadius: 16,
-    overflow: 'hidden',
-    maxWidth: 220,
-  },
-  historyChipActive: {
-    backgroundColor: '#d9ebde',
-  },
-  historyChipMain: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minWidth: 130,
-    maxWidth: 180,
-  },
-  historyChipText: {
-    color: '#31483d',
-    fontWeight: '700',
-  },
-  historyChipTextActive: {
-    color: '#1f5d36',
-  },
-  historyChipSubText: {
-    color: '#708178',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  historyChipSubTextActive: {
-    color: '#547263',
-  },
-  historyDeleteButton: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    backgroundColor: 'rgba(181, 72, 72, 0.12)',
-  },
-  historyDeleteButtonText: {
-    color: '#b54848',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  petContextSection: {
-    backgroundColor: '#f7fbf7',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e3ece5',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 14,
-  },
-  petContextHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  petContextTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#294236',
-  },
-  petContextSubtitle: {
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 20,
-    color: '#607068',
-  },
-  petChipList: {
-    paddingTop: 10,
-    gap: 8,
-  },
-  petChip: {
-    minWidth: 86,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
-    backgroundColor: '#edf3ee',
-  },
-  petChipActive: {
-    backgroundColor: '#d7ebdd',
-  },
-  petChipText: {
-    color: '#315347',
-    fontWeight: '700',
-  },
-  petChipTextActive: {
-    color: '#1f6f45',
-  },
-  petChipMetaText: {
-    marginTop: 4,
-    fontSize: 11,
-    color: '#6e8075',
-  },
-  petChipMetaTextActive: {
-    color: '#4d715c',
-  },
-  shortcutSection: {
-    backgroundColor: '#fff',
-    paddingTop: 12,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#edf1ee',
-  },
-  shortcutTitle: {
-    paddingHorizontal: 16,
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#294236',
-    marginBottom: 10,
-  },
-  shortcutList: {
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  shortcutChip: {
-    maxWidth: 220,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
-    backgroundColor: '#edf6ef',
-    borderWidth: 1,
-    borderColor: '#dbe9de',
-  },
-  shortcutChipText: {
-    color: '#315347',
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
-  noticeCard: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 14,
-    backgroundColor: '#f7fbf8',
-    borderWidth: 1,
-    borderColor: '#e1ebe4',
-    padding: 12,
-  },
-  noticeTitle: {
+  contextLabel: {
     fontSize: 13,
     fontWeight: '700',
     color: '#294236',
     marginBottom: 6,
   },
-  noticeText: {
-    fontSize: 12,
-    lineHeight: 18,
+  contextValue: {
+    fontSize: 13,
+    lineHeight: 19,
     color: '#617169',
+  },
+  switchButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#edf6ee',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
+  },
+  switchButtonText: {
+    color: '#2f6e43',
+    fontSize: 13,
+    fontWeight: '700',
   },
   messagesList: {
     flexGrow: 1,
     padding: 12,
+    paddingTop: 12,
+    paddingBottom: 18,
   },
   messageContainer: {
     maxWidth: '82%',
@@ -1418,7 +1385,7 @@ const styles = StyleSheet.create({
   },
   pendingAudioPlayText: {
     color: '#2a6d44',
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 12,
   },
   pendingClose: {
@@ -1451,6 +1418,188 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#587164',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(14, 22, 16, 0.38)',
+    justifyContent: 'flex-end',
+  },
+  historyPanel: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 30,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    maxHeight: '78%',
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  historyPanelTitle: {
+    color: '#223026',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  historyPanelHint: {
+    color: '#718076',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  historyPanelContent: {
+    paddingTop: 16,
+    paddingBottom: 6,
+  },
+  historyLoading: {
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  historyListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f6faf6',
+    borderRadius: 18,
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  historyListItemActive: {
+    backgroundColor: '#e6f3e7',
+  },
+  historyListItemBody: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  historyListItemTitle: {
+    color: '#203025',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  historyListItemTitleActive: {
+    color: '#1f5d36',
+  },
+  historyListItemSubtitle: {
+    color: '#718076',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  historyListItemSubtitleActive: {
+    color: '#547263',
+  },
+  historyListItemAction: {
+    color: '#2f6e43',
+    fontSize: 13,
+    fontWeight: '700',
+    paddingHorizontal: 6,
+  },
+  historyListItemActionActive: {
+    color: '#234d31',
+  },
+  historyDeleteButton: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(181, 72, 72, 0.10)',
+  },
+  historyDeleteButtonText: {
+    color: '#b54848',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  historyEmptyState: {
+    backgroundColor: '#f7fbf8',
+    borderRadius: 18,
+    padding: 18,
+    alignItems: 'center',
+  },
+  historyEmptyTitle: {
+    color: '#243029',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  historyEmptyText: {
+    color: '#6f7c73',
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  switcherPanel: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 18,
+    paddingTop: 20,
+    paddingBottom: 30,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    maxHeight: '78%',
+  },
+  switcherTitle: {
+    color: '#223026',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  switcherHint: {
+    color: '#718076',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  generalPetBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#fff7df',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  generalPetBadgeText: {
+    color: '#7a5e1f',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  petOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f6faf6',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  petOptionRowActive: {
+    backgroundColor: '#e6f3e7',
+  },
+  petOptionInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  petOptionName: {
+    color: '#203025',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  petOptionMeta: {
+    color: '#718076',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  petOptionState: {
+    color: '#2f6e43',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  petOptionStateActive: {
+    color: '#234d31',
   },
   attachmentMenu: {
     flexDirection: 'row',

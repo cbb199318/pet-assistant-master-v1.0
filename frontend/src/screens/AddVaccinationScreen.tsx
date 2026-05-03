@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useForm, Controller } from 'react-hook-form';
+import DatePickerField from '../components/DatePickerField';
 import { Feedback } from '../components/Feedback';
 import ProviderQuickSelect from '../components/ProviderQuickSelect';
 import RecordImageUploader from '../components/RecordImageUploader';
@@ -185,8 +186,13 @@ const AddVaccinationScreen = ({ navigation, route }: any) => {
               control={control}
               name="vaccination_date"
               rules={{ required: '请输入接种日期' }}
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value} placeholder="YYYY-MM-DD" />
+              render={({ field: { onChange, value } }) => (
+                <DatePickerField
+                  value={value}
+                  onChange={onChange}
+                  placeholder="请选择接种日期"
+                  title="选择接种日期"
+                />
               )}
             />
             {errors.vaccination_date && <Text style={styles.error}>{errors.vaccination_date.message}</Text>}
@@ -197,8 +203,14 @@ const AddVaccinationScreen = ({ navigation, route }: any) => {
             <Controller
               control={control}
               name="next_date"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput style={styles.input} onBlur={onBlur} onChangeText={onChange} value={value} placeholder="YYYY-MM-DD" />
+              render={({ field: { onChange, value } }) => (
+                <DatePickerField
+                  value={value}
+                  onChange={onChange}
+                  placeholder="请选择下次接种日期"
+                  title="选择下次接种日期"
+                  allowClear
+                />
               )}
             />
           </View>

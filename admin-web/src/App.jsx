@@ -19,11 +19,31 @@ const emptyOverview = Object.fromEntries(overviewLabels.map(([key]) => [key, 0])
 
 const tabs = [
   {
+    key: 'dashboard',
+    label: '数据分析',
+    eyebrow: '数据分析',
+    title: '数据分析',
+    placeholder: '',
+    permission: 'dashboard:view',
+    group: 'workspace',
+  },
+  {
+    key: 'adminUsers',
+    label: '权限管理',
+    eyebrow: '权限管理',
+    title: '管理员与角色',
+    placeholder: '按管理员账号搜索',
+    permission: 'admin_users:view',
+    group: 'management',
+  },
+  {
     key: 'users',
     label: '用户管理',
     eyebrow: '用户管理',
     title: '用户列表',
     placeholder: '按手机号或昵称搜索',
+    permission: 'users:view',
+    group: 'management',
   },
   {
     key: 'posts',
@@ -31,6 +51,8 @@ const tabs = [
     eyebrow: '内容管理',
     title: '社区帖子',
     placeholder: '按标题、正文、作者搜索',
+    permission: 'posts:view',
+    group: 'content',
   },
   {
     key: 'comments',
@@ -38,6 +60,8 @@ const tabs = [
     eyebrow: '内容管理',
     title: '社区评论',
     placeholder: '按评论、帖子标题、作者搜索',
+    permission: 'comments:view',
+    group: 'content',
   },
   {
     key: 'categories',
@@ -45,6 +69,8 @@ const tabs = [
     eyebrow: '内容管理',
     title: '知识分类',
     placeholder: '按分类名或描述搜索',
+    permission: 'categories:view',
+    group: 'content',
   },
   {
     key: 'articles',
@@ -52,6 +78,8 @@ const tabs = [
     eyebrow: '内容管理',
     title: '知识文章',
     placeholder: '按标题、正文、分类搜索',
+    permission: 'articles:view',
+    group: 'content',
   },
   {
     key: 'settings',
@@ -59,6 +87,8 @@ const tabs = [
     eyebrow: '系统配置',
     title: '配置项',
     placeholder: '按 key、标签或说明搜索',
+    permission: 'settings:view',
+    group: 'system',
   },
   {
     key: 'auditLogs',
@@ -66,10 +96,40 @@ const tabs = [
     eyebrow: '操作留痕',
     title: '管理员审计日志',
     placeholder: '按管理员、动作或资源搜索',
+    permission: 'audit_logs:view',
+    group: 'system',
+  },
+];
+
+const sidebarGroups = [
+  {
+    key: 'workspace',
+    label: '工作区',
+    icon: 'DA',
+    caption: '查看整体数据与趋势',
+  },
+  {
+    key: 'management',
+    label: '权限与用户',
+    icon: 'GU',
+    caption: '管理员、角色与用户',
+  },
+  {
+    key: 'content',
+    label: '内容管理',
+    icon: 'CM',
+    caption: '帖子、评论、分类、文章',
+  },
+  {
+    key: 'system',
+    label: '系统设置',
+    icon: 'ST',
+    caption: '配置项与审计留痕',
   },
 ];
 
 const listLoaders = {
+  adminUsers: adminApi.getAdminUsers,
   users: adminApi.getUsers,
   posts: adminApi.getPosts,
   comments: adminApi.getComments,
@@ -96,6 +156,77 @@ const trendMetrics = [
   ['posts', '帖子新增'],
   ['bookings', '预约新增'],
   ['articles', '文章新增'],
+];
+
+const tabIcons = {
+  dashboard: 'DA',
+  adminUsers: 'PM',
+  users: 'US',
+  posts: 'PO',
+  comments: 'CM',
+  categories: 'CT',
+  articles: 'AR',
+  settings: 'ST',
+  auditLogs: 'LG',
+};
+
+const heroMetricConfigs = [
+  {
+    key: 'totalUsers',
+    label: '用户总数',
+    helper: '平台注册用户',
+    icon: 'US',
+    tone: 'blue',
+  },
+  {
+    key: 'totalPets',
+    label: '宠物档案',
+    helper: '已建立档案数量',
+    icon: 'PT',
+    tone: 'amber',
+  },
+  {
+    key: 'totalArticles',
+    label: '知识内容',
+    helper: '文章与推荐内容',
+    icon: 'KN',
+    tone: 'green',
+  },
+  {
+    key: 'totalBookings',
+    label: '社区预约',
+    helper: '用户预约记录',
+    icon: 'BK',
+    tone: 'violet',
+  },
+];
+
+const secondaryMetricKeys = [
+  'totalPosts',
+  'totalComments',
+  'totalVaccinations',
+  'totalDewormings',
+  'totalCheckups',
+  'totalCares',
+  'totalCategories',
+];
+
+const roleGuides = [
+  {
+    role: 'super_admin',
+    title: '超级管理员',
+    description: '拥有系统全部权限，可管理管理员账号、系统配置和危险删除操作。',
+  },
+  {
+    role: 'content_admin',
+    title: '内容管理员',
+    description: '负责帖子评论审核、文章和分类维护，不可修改系统配置或执行危险删除。',
+  },
+  {
+    role: 'viewer_admin',
+    title: '只读管理员',
+    description: '用于演示或巡检，只能查看数据、列表和审计日志，不能修改业务数据。',
+  },
 ];
 
 function LoginView({ loading, error, onSubmit }) {
@@ -369,6 +500,77 @@ function ArticleModal({
   );
 }
 
+function AdminUserModal({
+  loading,
+  visible,
+  form,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
+  if (!visible) {
+    return null;
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <div className="eyebrow">权限管理</div>
+            <h2>新增管理员</h2>
+          </div>
+          <button className="ghost-button" onClick={onClose}>
+            关闭
+          </button>
+        </div>
+
+        <div className="form-grid">
+          <label>
+            <span>管理员账号</span>
+            <input
+              value={form.username}
+              onChange={(event) => onChange('username', event.target.value)}
+              placeholder="请输入管理员账号"
+            />
+          </label>
+          <label>
+            <span>初始密码</span>
+            <input
+              type="password"
+              value={form.password}
+              onChange={(event) => onChange('password', event.target.value)}
+              placeholder="请输入初始密码"
+            />
+          </label>
+          <label>
+            <span>角色</span>
+            <select
+              value={form.role}
+              onChange={(event) => onChange('role', event.target.value)}
+            >
+              {roleGuides.map((item) => (
+                <option key={item.role} value={item.role}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="modal-actions">
+          <button className="ghost-button" onClick={onClose} disabled={loading}>
+            取消
+          </button>
+          <button className="primary-button" onClick={onSubmit} disabled={loading}>
+            {loading ? '创建中...' : '创建管理员'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [booting, setBooting] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
@@ -376,7 +578,7 @@ function App() {
   const [admin, setAdmin] = useState(null);
   const [overview, setOverview] = useState(emptyOverview);
   const [trends, setTrends] = useState(null);
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [listLoading, setListLoading] = useState(false);
@@ -409,32 +611,48 @@ function App() {
     recommendation_reason: '',
   });
   const [categoryOptions, setCategoryOptions] = useState([]);
+  const [adminUserModalVisible, setAdminUserModalVisible] = useState(false);
+  const [adminUserForm, setAdminUserForm] = useState({
+    username: '',
+    password: '',
+    role: 'content_admin',
+  });
   const [auditFilters, setAuditFilters] = useState({
     admin_username: '',
     action: '',
     resource_type: '',
   });
+  const [collapsedGroups, setCollapsedGroups] = useState({});
   const pageSize = 10;
-
-  const isSuperAdmin = admin?.role === 'super_admin';
+  const permissions = admin?.permissions || [];
+  const hasPermission = (permission) => permissions.includes(permission);
   const visibleTabs = useMemo(
     () =>
       tabs.filter((tab) => {
         if (!admin) {
           return true;
         }
-        if (!isSuperAdmin && ['users', 'settings'].includes(tab.key)) {
-          return false;
-        }
-        return true;
+        return !tab.permission || permissions.includes(tab.permission);
       }),
-    [admin, isSuperAdmin],
+    [admin, permissions],
+  );
+
+  const visibleTabGroups = useMemo(
+    () =>
+      sidebarGroups
+        .map((group) => ({
+          ...group,
+          tabs: visibleTabs.filter((tab) => tab.group === group.key),
+        }))
+        .filter((group) => group.tabs.length > 0),
+    [visibleTabs],
   );
 
   const activeTabMeta = useMemo(
     () => visibleTabs.find((tab) => tab.key === activeTab) || visibleTabs[0] || tabs[0],
     [activeTab, visibleTabs],
   );
+  const activeGroupKey = activeTabMeta?.group || visibleTabGroups[0]?.key || '';
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(total / pageSize)),
@@ -469,7 +687,19 @@ function App() {
   };
 
   const loadList = async (tab = activeTab, nextPage = page, nextKeyword = keyword) => {
+    if (tab === 'dashboard') {
+      setRows([]);
+      setTotal(0);
+      return;
+    }
+
     const loader = listLoaders[tab];
+    if (!loader) {
+      setRows([]);
+      setTotal(0);
+      return;
+    }
+
     const response = await loader(
       tab === 'auditLogs'
         ? {
@@ -503,6 +733,11 @@ function App() {
   };
 
   const refreshCurrentView = async (tab = activeTab, nextPage = page, nextKeyword = keyword) => {
+    if (tab === 'dashboard') {
+      await loadOverview();
+      return;
+    }
+
     await Promise.all([loadOverview(), loadList(tab, nextPage, nextKeyword)]);
   };
 
@@ -544,9 +779,20 @@ function App() {
     }
 
     if (!visibleTabs.some((tab) => tab.key === activeTab)) {
-      setActiveTab(visibleTabs[0]?.key || 'posts');
+      setActiveTab(visibleTabs[0]?.key || 'dashboard');
     }
   }, [activeTab, admin, visibleTabs]);
+
+  useEffect(() => {
+    if (!activeGroupKey) {
+      return;
+    }
+
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [activeGroupKey]: false,
+    }));
+  }, [activeGroupKey]);
 
   useEffect(() => {
     if (!admin) {
@@ -599,6 +845,13 @@ function App() {
       action: '',
       resource_type: '',
     });
+  };
+
+  const handleGroupToggle = (groupKey) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [groupKey]: !prev[groupKey],
+    }));
   };
 
   const handleSearchSubmit = (event) => {
@@ -694,6 +947,88 @@ function App() {
       await refreshCurrentView('settings', 1, keyword);
     } catch (error) {
       window.alert(adminApi.getErrorMessage(error, '更新配置失败'));
+    }
+  };
+
+  const openAdminUserModal = () => {
+    setAdminUserForm({
+      username: '',
+      password: '',
+      role: 'content_admin',
+    });
+    setAdminUserModalVisible(true);
+  };
+
+  const handleAdminUserSubmit = async () => {
+    const payload = {
+      username: adminUserForm.username.trim(),
+      password: adminUserForm.password.trim(),
+      role: adminUserForm.role,
+    };
+
+    if (!payload.username || !payload.password) {
+      window.alert('管理员账号和密码不能为空');
+      return;
+    }
+
+    setModalLoading(true);
+    try {
+      await adminApi.createAdminUser(payload);
+      setAdminUserModalVisible(false);
+      await refreshCurrentView('adminUsers', page, keyword);
+    } catch (error) {
+      window.alert(adminApi.getErrorMessage(error, '创建管理员失败'));
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleAdminRoleChange = async (item) => {
+    const nextRole = window.prompt(
+      '请输入新角色：super_admin / content_admin / viewer_admin',
+      item.role || 'content_admin',
+    );
+    if (!nextRole) {
+      return;
+    }
+
+    try {
+      await adminApi.updateAdminUserRole(item.id, nextRole.trim());
+      await refreshCurrentView('adminUsers', page, keyword);
+    } catch (error) {
+      window.alert(adminApi.getErrorMessage(error, '更新角色失败'));
+    }
+  };
+
+  const handleAdminStatusChange = async (item) => {
+    const nextStatus = item.status === 'active' ? 'disabled' : 'active';
+    const confirmed = window.confirm(
+      `确认将管理员“${item.username}”设置为 ${nextStatus === 'active' ? '启用' : '停用'}吗？`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await adminApi.updateAdminUserStatus(item.id, nextStatus);
+      await refreshCurrentView('adminUsers', page, keyword);
+    } catch (error) {
+      window.alert(adminApi.getErrorMessage(error, '更新状态失败'));
+    }
+  };
+
+  const handleAdminPasswordReset = async (item) => {
+    const nextPassword = window.prompt(`为管理员“${item.username}”设置新密码`);
+    if (!nextPassword) {
+      return;
+    }
+
+    try {
+      await adminApi.resetAdminUserPassword(item.id, nextPassword.trim());
+      window.alert('密码已重置');
+      await refreshCurrentView('adminUsers', page, keyword);
+    } catch (error) {
+      window.alert(adminApi.getErrorMessage(error, '重置密码失败'));
     }
   };
 
@@ -853,208 +1188,346 @@ function App() {
     );
   }
 
+  const heroMetrics = heroMetricConfigs.map((item) => ({
+    ...item,
+    value: overview[item.key] ?? 0,
+  }));
+  const secondaryMetrics = overviewLabels
+    .filter(([key]) => secondaryMetricKeys.includes(key))
+    .map(([key, label]) => ({ key, label, value: overview[key] ?? 0 }));
+  const summaryHighlights = [
+    `近 7 天帖子 ${trends?.recentActivity?.posts ?? 0}`,
+    `评论 ${trends?.recentActivity?.comments ?? 0}`,
+    `预约 ${trends?.recentActivity?.bookings ?? 0}`,
+  ];
+
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div>
-          <div className="eyebrow">Pet Assistant Admin</div>
-          <h1>宠物助手管理台</h1>
-          <p className="topbar-copy">
-            当前后端地址：{adminApi.getBaseUrl()}
-          </p>
-        </div>
-        <div className="topbar-actions">
-          <div className="admin-chip">
-            <span>{admin.role === 'super_admin' ? '超级管理员' : '内容管理员'}</span>
-            <strong>{admin.username}</strong>
+    <div className="admin-shell">
+      <aside className="sidebar">
+        <div className="brand-card">
+          <div className="brand-mark">PA</div>
+          <div>
+            <div className="brand-title">宠物助手</div>
+            <div className="brand-subtitle">Admin Console</div>
           </div>
-          <button className="ghost-button" onClick={handleLogout}>
+        </div>
+
+        <div className="sidebar-section-label">导航</div>
+        <div className="sidebar-nav-groups">
+          {visibleTabGroups.map((group) => (
+            <section className="sidebar-nav-group" key={group.key}>
+              <button
+                className={`sidebar-group-trigger ${collapsedGroups[group.key] ? '' : 'sidebar-group-trigger-open'}`}
+                onClick={() => handleGroupToggle(group.key)}
+                type="button"
+              >
+                <span className="sidebar-group-main">
+                  <span className="sidebar-group-icon">{group.icon}</span>
+                  <span className="sidebar-group-copy">
+                    <span className="sidebar-group-title">{group.label}</span>
+                    <span className="sidebar-group-caption">
+                      {group.caption}
+                    </span>
+                  </span>
+                </span>
+                <span className="sidebar-group-meta">
+                  <span className={`sidebar-group-chevron ${collapsedGroups[group.key] ? '' : 'sidebar-group-chevron-open'}`}>
+                    ▾
+                  </span>
+                </span>
+              </button>
+              <nav className={`sidebar-nav sidebar-subnav ${collapsedGroups[group.key] ? 'sidebar-subnav-collapsed' : ''}`}>
+                {group.tabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    className={`sidebar-link ${activeTab === tab.key ? 'sidebar-link-active' : ''}`}
+                    onClick={() => handleTabChange(tab.key)}
+                  >
+                    <span className="sidebar-link-icon">{tabIcons[tab.key] || 'TB'}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </nav>
+            </section>
+          ))}
+        </div>
+
+        <div className="sidebar-footer">
+          <div className="sidebar-section-label">当前角色</div>
+          <div className="sidebar-role-card">
+            <strong>{admin.role_label || '管理员'}</strong>
+            <span>{admin.username}</span>
+          </div>
+          <button className="ghost-button sidebar-logout" onClick={handleLogout}>
             退出登录
           </button>
         </div>
-      </header>
+      </aside>
 
-      <main className="dashboard-layout">
-        <section className="overview-grid">
-          {overviewLabels.map(([key, label]) => (
-            <article className="metric-card" key={key}>
-              <span>{label}</span>
-              <strong>{overview[key] ?? 0}</strong>
-            </article>
-          ))}
-        </section>
+      <div className="workspace">
+        <header className="workspace-topbar">
+          <div className="workspace-heading">
+            <div className="workspace-kicker">{activeTabMeta.eyebrow}</div>
+            <h1>{activeTabMeta.title}</h1>
+            <p className="workspace-copy">
+              当前后端地址：{adminApi.getBaseUrl()}
+            </p>
+          </div>
 
-        {trends ? (
-          <section className="trend-panel">
-            <div className="trend-panel-header">
+          <div className="workspace-topbar-actions">
+            <button
+              className="ghost-button"
+              onClick={() => {
+                setListLoading(true);
+                refreshCurrentView(activeTab, page, keyword)
+                  .catch((error) => {
+                    window.alert(adminApi.getErrorMessage(error, '刷新数据失败'));
+                  })
+                  .finally(() => setListLoading(false));
+              }}
+            >
+              刷新数据
+            </button>
+            <div className="admin-pill">
+              <span className="admin-pill-avatar">
+                {(admin.username || 'A').slice(0, 1).toUpperCase()}
+              </span>
               <div>
-                <div className="eyebrow">运营概览</div>
-                <h2>近 7 天趋势与近 30 天汇总</h2>
-              </div>
-              <div className="trend-summary-inline">
-                <span>近 7 天帖子 {trends.recentActivity?.posts ?? 0}</span>
-                <span>评论 {trends.recentActivity?.comments ?? 0}</span>
-                <span>预约 {trends.recentActivity?.bookings ?? 0}</span>
+                <strong>{admin.username}</strong>
+                <span>{admin.role_label || admin.role || 'Admin'}</span>
               </div>
             </div>
+          </div>
+        </header>
 
-            <div className="trend-card-grid">
-              {trendMetrics.map(([metricKey, label]) => (
-                <article className="trend-card" key={metricKey}>
-                  <div className="trend-card-header">
-                    <strong>{label}</strong>
-                    <span>{`30 天 ${trends.last30Days?.totals?.[metricKey] ?? 0}`}</span>
+        <main className="workspace-main">
+          {activeTab === 'dashboard' ? (
+            <>
+              <section className="hero-metric-grid">
+                {heroMetrics.map((item) => (
+                  <article className={`hero-metric-card tone-${item.tone}`} key={item.key}>
+                    <div className="hero-metric-icon">{item.icon}</div>
+                    <div className="hero-metric-body">
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <small>{item.helper}</small>
+                    </div>
+                  </article>
+                ))}
+              </section>
+
+              <section className="surface-panel summary-panel">
+                <div className="summary-panel-header">
+                  <div>
+                    <div className="eyebrow">业务概览</div>
+                    <h2>全局数据与活跃趋势</h2>
                   </div>
-                  <div className="trend-bars">
-                    {(trends.last7Days?.daily || []).map((point) => {
-                      const values = (trends.last7Days?.daily || []).map((item) => item[metricKey] || 0);
-                      const maxValue = Math.max(...values, 1);
-                      const height = `${Math.max(((point[metricKey] || 0) / maxValue) * 100, point[metricKey] ? 16 : 6)}%`;
+                  <div className="trend-summary-inline">
+                    {summaryHighlights.map((item) => (
+                      <span key={item}>{item}</span>
+                    ))}
+                  </div>
+                </div>
 
-                      return (
-                        <div className="trend-bar-item" key={`${metricKey}-${point.date}`}>
-                          <div className="trend-bar-track">
-                            <div className="trend-bar-fill" style={{ height }} />
-                          </div>
-                          <span className="trend-bar-value">{point[metricKey] || 0}</span>
-                          <span className="trend-bar-label">{point.date.slice(5)}</span>
+                <div className="summary-metric-strip">
+                  {secondaryMetrics.map((item) => (
+                    <div className="summary-metric-chip" key={item.key}>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                    </div>
+                  ))}
+                </div>
+
+                {trends ? (
+                  <div className="trend-card-grid">
+                    {trendMetrics.map(([metricKey, label]) => (
+                      <article className="trend-card" key={metricKey}>
+                        <div className="trend-card-header">
+                          <strong>{label}</strong>
+                          <span>{`30 天 ${trends.last30Days?.totals?.[metricKey] ?? 0}`}</span>
                         </div>
-                      );
-                    })}
+                        <div className="trend-bars">
+                          {(trends.last7Days?.daily || []).map((point) => {
+                            const values = (trends.last7Days?.daily || []).map((item) => item[metricKey] || 0);
+                            const maxValue = Math.max(...values, 1);
+                            const height = `${Math.max(((point[metricKey] || 0) / maxValue) * 100, point[metricKey] ? 18 : 8)}%`;
+
+                            return (
+                              <div className="trend-bar-item" key={`${metricKey}-${point.date}`}>
+                                <div className="trend-bar-track">
+                                  <div className="trend-bar-fill" style={{ height }} />
+                                </div>
+                                <span className="trend-bar-value">{point[metricKey] || 0}</span>
+                                <span className="trend-bar-label">{point.date.slice(5)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </article>
+                    ))}
                   </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <section className="content-panel">
-          <div className="tab-row">
-            {visibleTabs.map((tab) => (
-              <button
-                key={tab.key}
-                className={`tab-button ${activeTab === tab.key ? 'tab-button-active' : ''}`}
-                onClick={() => handleTabChange(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="panel-header">
-            <div className="panel-title-stack">
-              <div className="eyebrow">{activeTabMeta.eyebrow}</div>
-              <h2>{activeTabMeta.title}</h2>
-            </div>
-
-            <div className="panel-toolbar">
-              {(activeTab === 'categories' || activeTab === 'articles') && (
-                <button
-                  className="primary-button"
-                  onClick={
-                    activeTab === 'categories'
-                      ? openCategoryModalForCreate
-                      : openArticleModalForCreate
-                  }
-                  disabled={modalLoading}
-                >
-                  {activeTab === 'categories' ? '新增分类' : '新增文章'}
-                </button>
-              )}
-
-              <form className="search-form" onSubmit={handleSearchSubmit}>
-                <input
-                  value={keywordInput}
-                  onChange={(event) => setKeywordInput(event.target.value)}
-                  placeholder={activeTabMeta.placeholder}
-                />
-                <button className="primary-button" type="submit">
-                  搜索
-                </button>
-              </form>
-            </div>
-          </div>
-
-          {activeTab === 'auditLogs' ? (
-            <div className="filter-row">
-              <input
-                value={auditFilters.admin_username}
-                onChange={(event) =>
-                  setAuditFilters((prev) => ({ ...prev, admin_username: event.target.value }))
-                }
-                placeholder="按管理员筛选"
-              />
-              <input
-                value={auditFilters.action}
-                onChange={(event) =>
-                  setAuditFilters((prev) => ({ ...prev, action: event.target.value }))
-                }
-                placeholder="按动作筛选"
-              />
-              <input
-                value={auditFilters.resource_type}
-                onChange={(event) =>
-                  setAuditFilters((prev) => ({ ...prev, resource_type: event.target.value }))
-                }
-                placeholder="按资源类型筛选"
-              />
-            </div>
+                ) : null}
+              </section>
+            </>
           ) : null}
 
-          <div className="table-shell">
-            <table>
-              <thead>{renderTableHead(activeTab)}</thead>
-              <tbody>
-                {listLoading ? (
-                  <tr>
-                    <td colSpan={getColumnCount(activeTab)} className="panel-muted">
-                      正在加载列表...
-                    </td>
-                  </tr>
-                ) : rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={getColumnCount(activeTab)} className="panel-muted">
-                      暂无匹配数据
-                    </td>
-                  </tr>
-                ) : (
-                  renderTableRows(activeTab, rows, {
-                    onView: (id) => loadDetail(activeTab, id),
-                    onDelete: (item) => handleDelete(activeTab, item),
-                    onEditCategory: openCategoryModalForEdit,
-                    onEditArticle: openArticleModalForEdit,
-                    onStatusChange: (item, status) => handleStatusUpdate(activeTab, item, status),
-                    onEditSetting: handleSettingUpdate,
-                    canDeleteDangerously: isSuperAdmin,
-                  })
+          {activeTab !== 'dashboard' ? (
+          <section className="surface-panel control-panel">
+            <div className="panel-header">
+              <div className="panel-title-stack">
+                <div className="eyebrow">{activeTabMeta.eyebrow}</div>
+                <h2>{activeTabMeta.title}</h2>
+              </div>
+
+              <div className="panel-toolbar">
+                {((activeTab === 'categories' && hasPermission('categories:create'))
+                  || (activeTab === 'articles' && hasPermission('articles:create'))
+                  || (activeTab === 'adminUsers' && hasPermission('admin_users:create'))) && (
+                  <button
+                    className="primary-button"
+                    onClick={
+                      activeTab === 'categories'
+                        ? openCategoryModalForCreate
+                        : activeTab === 'articles'
+                          ? openArticleModalForCreate
+                          : openAdminUserModal
+                    }
+                    disabled={modalLoading}
+                  >
+                    {activeTab === 'categories'
+                      ? '新增分类'
+                      : activeTab === 'articles'
+                        ? '新增文章'
+                        : '新增管理员'}
+                  </button>
+                )}
+
+                <form className="search-form" onSubmit={handleSearchSubmit}>
+                  <input
+                    value={keywordInput}
+                    onChange={(event) => setKeywordInput(event.target.value)}
+                    placeholder={activeTabMeta.placeholder}
+                  />
+                  <button className="ghost-button" type="submit">
+                    搜索
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {activeTab === 'auditLogs' ? (
+              <div className="filter-row">
+                <input
+                  value={auditFilters.admin_username}
+                  onChange={(event) =>
+                    setAuditFilters((prev) => ({ ...prev, admin_username: event.target.value }))
+                  }
+                  placeholder="按管理员筛选"
+                />
+                <input
+                  value={auditFilters.action}
+                  onChange={(event) =>
+                    setAuditFilters((prev) => ({ ...prev, action: event.target.value }))
+                  }
+                  placeholder="按动作筛选"
+                />
+                <input
+                  value={auditFilters.resource_type}
+                  onChange={(event) =>
+                    setAuditFilters((prev) => ({ ...prev, resource_type: event.target.value }))
+                  }
+                  placeholder="按资源类型筛选"
+                />
+              </div>
+            ) : null}
+
+            {activeTab === 'adminUsers' ? (
+              <div className="role-guide-grid">
+                {roleGuides.map((item) => (
+                  <article className="role-guide-card" key={item.role}>
+                    <strong>{item.title}</strong>
+                    <span>{item.role}</span>
+                    <p>{item.description}</p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </section>
+          ) : null}
+
+          {activeTab !== 'dashboard' ? (
+          <section className="surface-panel content-panel">
+            <div className="table-shell">
+              <table>
+                <thead>{renderTableHead(activeTab)}</thead>
+                <tbody>
+                  {listLoading ? (
+                    <tr>
+                      <td colSpan={getColumnCount(activeTab)} className="panel-muted">
+                        正在加载列表...
+                      </td>
+                    </tr>
+                  ) : rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={getColumnCount(activeTab)} className="panel-muted">
+                        暂无匹配数据
+                      </td>
+                    </tr>
+                  ) : (
+                    renderTableRows(activeTab, rows, {
+                      onView: (id) => loadDetail(activeTab, id),
+                      onDelete: (item) => handleDelete(activeTab, item),
+                      onAdminRoleChange: handleAdminRoleChange,
+                      onAdminStatusChange: handleAdminStatusChange,
+                      onAdminPasswordReset: handleAdminPasswordReset,
+                      onEditCategory: openCategoryModalForEdit,
+                      onEditArticle: openArticleModalForEdit,
+                      onStatusChange: (item, status) => handleStatusUpdate(activeTab, item, status),
+                      onEditSetting: handleSettingUpdate,
+                      canDeleteUsers: hasPermission('users:delete'),
+                      canDeletePosts: hasPermission('posts:delete'),
+                      canReviewPosts: hasPermission('posts:review'),
+                      canDeleteComments: hasPermission('comments:delete'),
+                      canReviewComments: hasPermission('comments:review'),
+                      canCreateCategories: hasPermission('categories:create'),
+                      canEditCategories: hasPermission('categories:update'),
+                      canDeleteCategories: hasPermission('categories:delete'),
+                      canCreateArticles: hasPermission('articles:create'),
+                      canEditArticles: hasPermission('articles:update'),
+                      canDeleteArticles: hasPermission('articles:delete'),
+                      canEditSettings: hasPermission('settings:update'),
+                      canManageAdminUsers: hasPermission('admin_users:update_role') || hasPermission('admin_users:update_status') || hasPermission('admin_users:reset_password'),
+                    })
                 )}
               </tbody>
             </table>
-          </div>
-
-          <div className="pagination">
-            <span>
-              共 {total} 条，第 {page} / {totalPages} 页
-            </span>
-            <div className="pagination-actions">
-              <button
-                className="ghost-button"
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                disabled={page <= 1}
-              >
-                上一页
-              </button>
-              <button
-                className="ghost-button"
-                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={page >= totalPages}
-              >
-                下一页
-              </button>
             </div>
-          </div>
-        </section>
-      </main>
+
+            <div className="pagination">
+              <span>
+                共 {total} 条，第 {page} / {totalPages} 页
+              </span>
+              <div className="pagination-actions">
+                <button
+                  className="ghost-button"
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  disabled={page <= 1}
+                >
+                  上一页
+                </button>
+                <button
+                  className="ghost-button"
+                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={page >= totalPages}
+                >
+                  下一页
+                </button>
+              </div>
+            </div>
+          </section>
+          ) : null}
+        </main>
+      </div>
 
       <DetailDrawer
         detailType={detailType}
@@ -1090,11 +1563,36 @@ function App() {
         onClose={() => setArticleModalVisible(false)}
         onSubmit={handleArticleSubmit}
       />
+
+      <AdminUserModal
+        loading={modalLoading}
+        visible={adminUserModalVisible}
+        form={adminUserForm}
+        onChange={(field, value) =>
+          setAdminUserForm((prev) => ({ ...prev, [field]: value }))
+        }
+        onClose={() => setAdminUserModalVisible(false)}
+        onSubmit={handleAdminUserSubmit}
+      />
     </div>
   );
 }
 
 function renderTableHead(activeTab) {
+  if (activeTab === 'adminUsers') {
+    return (
+      <tr>
+        <th>ID</th>
+        <th>管理员账号</th>
+        <th>角色</th>
+        <th>状态</th>
+        <th>最近登录</th>
+        <th>创建时间</th>
+        <th>操作</th>
+      </tr>
+    );
+  }
+
   if (activeTab === 'users') {
     return (
       <tr>
@@ -1188,6 +1686,41 @@ function renderTableHead(activeTab) {
 }
 
 function renderTableRows(activeTab, rows, handlers) {
+  if (activeTab === 'adminUsers') {
+    return rows.map((item) => (
+      <tr key={item.id}>
+        <td>{item.id}</td>
+        <td>
+          <div className="table-title">{item.username}</div>
+          <div className="table-subcopy">{item.permissions?.length || 0} 个权限点</div>
+        </td>
+        <td>{item.role_label || item.role}</td>
+        <td>{item.status === 'active' ? '启用中' : '已停用'}</td>
+        <td>{formatDate(item.last_login_at)}</td>
+        <td>{formatDate(item.created_at)}</td>
+        <td>
+          <div className="table-actions">
+            {handlers.canManageAdminUsers ? (
+              <>
+                <button className="ghost-button" onClick={() => handlers.onAdminRoleChange(item)}>
+                  改角色
+                </button>
+                <button className="ghost-button" onClick={() => handlers.onAdminStatusChange(item)}>
+                  {item.status === 'active' ? '停用' : '启用'}
+                </button>
+                <button className="text-button" onClick={() => handlers.onAdminPasswordReset(item)}>
+                  重置密码
+                </button>
+              </>
+            ) : (
+              <span className="table-subcopy">只读</span>
+            )}
+          </div>
+        </td>
+      </tr>
+    ));
+  }
+
   if (activeTab === 'users') {
     return rows.map((user) => (
       <tr key={user.id}>
@@ -1201,7 +1734,7 @@ function renderTableRows(activeTab, rows, handlers) {
             <button className="text-button" onClick={() => handlers.onView(user.id)}>
               查看
             </button>
-            {handlers.canDeleteDangerously ? (
+            {handlers.canDeleteUsers ? (
               <button className="danger-button" onClick={() => handlers.onDelete(user)}>
                 删除
               </button>
@@ -1230,10 +1763,12 @@ function renderTableRows(activeTab, rows, handlers) {
             <button className="text-button" onClick={() => handlers.onView(post.id)}>
               查看
             </button>
-            <button className="ghost-button" onClick={() => handlers.onStatusChange(post, post.status === 'approved' ? 'hidden' : 'approved')}>
-              {post.status === 'approved' ? '下架' : '通过'}
-            </button>
-            {handlers.canDeleteDangerously ? (
+            {handlers.canReviewPosts ? (
+              <button className="ghost-button" onClick={() => handlers.onStatusChange(post, post.status === 'approved' ? 'hidden' : 'approved')}>
+                {post.status === 'approved' ? '下架' : '通过'}
+              </button>
+            ) : null}
+            {handlers.canDeletePosts ? (
               <button className="danger-button" onClick={() => handlers.onDelete(post)}>
                 删除
               </button>
@@ -1258,10 +1793,12 @@ function renderTableRows(activeTab, rows, handlers) {
             <button className="text-button" onClick={() => handlers.onView(comment.id)}>
               查看
             </button>
-            <button className="ghost-button" onClick={() => handlers.onStatusChange(comment, comment.status === 'approved' ? 'hidden' : 'approved')}>
-              {comment.status === 'approved' ? '下架' : '通过'}
-            </button>
-            {handlers.canDeleteDangerously ? (
+            {handlers.canReviewComments ? (
+              <button className="ghost-button" onClick={() => handlers.onStatusChange(comment, comment.status === 'approved' ? 'hidden' : 'approved')}>
+                {comment.status === 'approved' ? '下架' : '通过'}
+              </button>
+            ) : null}
+            {handlers.canDeleteComments ? (
               <button className="danger-button" onClick={() => handlers.onDelete(comment)}>
                 删除
               </button>
@@ -1285,13 +1822,15 @@ function renderTableRows(activeTab, rows, handlers) {
             <button className="text-button" onClick={() => handlers.onView(category.id)}>
               查看
             </button>
-            <button
-              className="ghost-button"
-              onClick={() => handlers.onEditCategory(category.id)}
-            >
-              编辑
-            </button>
-            {handlers.canDeleteDangerously ? (
+            {handlers.canEditCategories ? (
+              <button
+                className="ghost-button"
+                onClick={() => handlers.onEditCategory(category.id)}
+              >
+                编辑
+              </button>
+            ) : null}
+            {handlers.canDeleteCategories ? (
               <button className="danger-button" onClick={() => handlers.onDelete(category)}>
                 删除
               </button>
@@ -1314,9 +1853,13 @@ function renderTableRows(activeTab, rows, handlers) {
         <td>{truncateText(setting.description, 48)}</td>
         <td>
           <div className="table-actions">
-            <button className="ghost-button" onClick={() => handlers.onEditSetting(setting)}>
-              修改
-            </button>
+            {handlers.canEditSettings ? (
+              <button className="ghost-button" onClick={() => handlers.onEditSetting(setting)}>
+                修改
+              </button>
+            ) : (
+              <span className="table-subcopy">只读</span>
+            )}
           </div>
         </td>
       </tr>
@@ -1348,13 +1891,15 @@ function renderTableRows(activeTab, rows, handlers) {
           <button className="text-button" onClick={() => handlers.onView(article.id)}>
             查看
           </button>
-          <button
-            className="ghost-button"
-            onClick={() => handlers.onEditArticle(article.id)}
-          >
-            编辑
-          </button>
-          {handlers.canDeleteDangerously ? (
+          {handlers.canEditArticles ? (
+            <button
+              className="ghost-button"
+              onClick={() => handlers.onEditArticle(article.id)}
+            >
+              编辑
+            </button>
+          ) : null}
+          {handlers.canDeleteArticles ? (
             <button className="danger-button" onClick={() => handlers.onDelete(article)}>
               删除
             </button>
@@ -1366,6 +1911,7 @@ function renderTableRows(activeTab, rows, handlers) {
 }
 
 function getColumnCount(activeTab) {
+  if (activeTab === 'adminUsers') return 7;
   if (activeTab === 'posts') return 8;
   if (activeTab === 'comments') return 7;
   if (activeTab === 'settings') return 5;
