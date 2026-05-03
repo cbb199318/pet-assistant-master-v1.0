@@ -8,6 +8,7 @@
 - 默认数据库：`sql.js`
 
 本地开发与答辩演示默认不依赖 MySQL、Redis、OSS。
+如果需要，也可以切换到 `MySQL`。
 
 ## 2. 环境要求
 
@@ -39,6 +40,24 @@ DB_TYPE=sqljs
 DB_AUTO_LOAD=true
 DEMO_SEED_ENABLED=true
 ```
+
+MySQL 配置示例：
+
+```env
+DB_TYPE=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USERNAME=root
+DB_PASSWORD=your_mysql_password
+DB_NAME=pet_assistant
+DB_CHARSET=utf8mb4
+DB_SYNCHRONIZE=true
+DB_LOGGING=false
+```
+
+也可以直接参考：
+
+- [backend/.env.mysql.example](/Users/caobingbing/workspace/pet-assistant-master-v1.0/backend/.env.mysql.example)
 
 AI 配置：
 

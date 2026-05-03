@@ -119,6 +119,52 @@ DEMO_SEED_ENABLED=false npm run dev:backend
 - 重复启动不会无限重复插入
 - 不会主动清空你已有的本地数据
 
+## 数据库说明
+
+当前项目默认使用：
+
+- `TypeORM`
+- 本地 `sql.js`
+
+也支持切换到 `MySQL`。
+
+如果你想改成 MySQL，先准备一个数据库，例如：
+
+```sql
+CREATE DATABASE pet_assistant CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+然后把 [backend/.env](/Users/caobingbing/workspace/pet-assistant-master-v1.0/backend/.env) 改成类似下面这样：
+
+```env
+DB_TYPE=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USERNAME=root
+DB_PASSWORD=你的MySQL密码
+DB_NAME=pet_assistant
+DB_CHARSET=utf8mb4
+DB_SYNCHRONIZE=true
+DB_LOGGING=false
+```
+
+仓库里也提供了示例文件：
+
+- [backend/.env.mysql.example](/Users/caobingbing/workspace/pet-assistant-master-v1.0/backend/.env.mysql.example)
+
+说明：
+
+- `DB_SYNCHRONIZE=true`
+  - 开发环境自动建表，方便联调
+- `DB_LOGGING=false`
+  - 关闭 SQL 日志；排查问题时可以改成 `true`
+
+切换后重新启动后端即可：
+
+```bash
+npm run dev:backend
+```
+
 ## 用户端当前功能
 
 ### 导航结构

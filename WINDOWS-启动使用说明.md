@@ -79,7 +79,7 @@ npm run dev:all
 
 ### 管理员账号
 
-默认管理员通常来自 [backend/.env](/Users/caobingbing/workspace/pet-assistant-master-v1.0/backend/.env)：
+默认管理员通常来自 [backend/.env](pet-assistant-master-v1.0/backend/.env)：
 
 ```env
 ADMIN_USERNAME=admin
@@ -175,7 +175,7 @@ npm run dev:admin
 
 ## 11. AI 配置
 
-如果需要真实 AI 效果，需要在 [backend/.env](/Users/caobingbing/workspace/pet-assistant-master-v1.0/backend/.env) 中配置：
+如果需要真实 AI 效果，需要在 [backend/.env](pet-assistant-master-v1.0/backend/.env) 中配置：
 
 ```env
 DEEPSEEK_API_KEY=你的密钥
@@ -195,7 +195,33 @@ QWEN_AUDIO_MODEL=qwen3.5-omni-flash
 
 但页面本身仍能正常使用。
 
-## 12. 推荐测试步骤
+## 12. 如果你要改用 MySQL
+
+当前项目默认是本地 `sql.js`。如果你希望换成 MySQL，先在 MySQL 里创建数据库：
+
+```sql
+CREATE DATABASE pet_assistant CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+然后把 [backend/.env](/Users/caobingbing/workspace/pet-assistant-master-v1.0/backend/.env) 改成类似下面这样：
+
+```env
+DB_TYPE=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USERNAME=root
+DB_PASSWORD=你的MySQL密码
+DB_NAME=pet_assistant
+DB_CHARSET=utf8mb4
+DB_SYNCHRONIZE=true
+DB_LOGGING=false
+```
+
+也可以直接参考：
+
+- [backend/.env.mysql.example](/Users/caobingbing/workspace/pet-assistant-master-v1.0/backend/.env.mysql.example)
+
+## 13. 推荐测试步骤
 
 ### 用户端
 
@@ -218,14 +244,14 @@ QWEN_AUDIO_MODEL=qwen3.5-omni-flash
 5. 新增或编辑分类、文章
 6. 查看系统配置和审计日志
 
-## 13. 构建与健康检查
+## 14. 构建与健康检查
 
 ```powershell
 npm run check:all
 npm run health:check
 ```
 
-## 14. 常见问题
+## 15. 常见问题
 
 ### `Network error`
 
@@ -248,4 +274,4 @@ npm run health:check
 
 - 访问的是 `5617`
 - 后端已启动
-- [backend/.env](/Users/caobingbing/workspace/pet-assistant-master-v1.0/backend/.env) 中管理员账号密码是否被改过
+- [backend/.env](pet-assistant-master-v1.0/backend/.env) 中管理员账号密码是否被改过

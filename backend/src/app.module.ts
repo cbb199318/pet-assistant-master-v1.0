@@ -50,6 +50,8 @@ const entities = [
 ];
 
 const databaseType = process.env.DB_TYPE || 'sqljs';
+const synchronize = (process.env.DB_SYNCHRONIZE || 'true').toLowerCase() === 'true';
+const logging = (process.env.DB_LOGGING || 'false').toLowerCase() === 'true';
 const databaseConfig =
   databaseType === 'mysql'
     ? {
@@ -57,17 +59,20 @@ const databaseConfig =
         host: process.env.DB_HOST || 'localhost',
         port: parseInt(process.env.DB_PORT || '3306'),
         username: process.env.DB_USERNAME || 'root',
-        password: process.env.DB_PASSWORD ?? '123456',
+        password: process.env.DB_PASSWORD ?? '',
         database: process.env.DB_NAME || 'pet_assistant',
+        charset: process.env.DB_CHARSET || 'utf8mb4',
         entities,
-        synchronize: true,
+        synchronize,
+        logging,
       }
     : {
         type: 'sqljs' as const,
         autoSave: true,
         location: process.env.SQLJS_LOCATION || 'pet-assistant.sqlite',
         entities,
-        synchronize: true,
+        synchronize,
+        logging,
       };
 
 @Module({
