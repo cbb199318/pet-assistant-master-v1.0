@@ -66,9 +66,10 @@ DEEPSEEK_API_KEY=你的密钥
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 DEEPSEEK_TEXT_MODEL=deepseek-chat
 QWEN_API_KEY=你的密钥
-QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
-QWEN_VISION_MODEL=qwen3-vl-flash
-QWEN_AUDIO_MODEL=qwen3.5-omni-flash
+QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_VISION_MODEL=qwen3.5-omni-plus
+QWEN_AUDIO_MODEL=qwen3.5-omni-plus
+QWEN_AUDIO_VOICE=Tina
 ```
 
 ### 4.2 前端可选覆盖

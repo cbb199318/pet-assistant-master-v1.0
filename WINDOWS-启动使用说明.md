@@ -245,9 +245,10 @@ DEEPSEEK_API_KEY=你的密钥
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 DEEPSEEK_TEXT_MODEL=deepseek-chat
 QWEN_API_KEY=你的密钥
-QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
-QWEN_VISION_MODEL=qwen3-vl-flash
-QWEN_AUDIO_MODEL=qwen3.5-omni-flash
+QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_VISION_MODEL=qwen3.5-omni-plus
+QWEN_AUDIO_MODEL=qwen3.5-omni-plus
+QWEN_AUDIO_VOICE=Tina
 ```
 
 未配置时：
@@ -255,6 +256,7 @@ QWEN_AUDIO_MODEL=qwen3.5-omni-flash
 - 文本问答会提示未配置
 - 图片理解会提示未配置
 - 语音转写会提示未配置
+- 如果你的 Key 来自阿里云国内地域，请不要再配 `dashscope-intl.aliyuncs.com`，否则会直接报 Key 无效
 
 但页面本身仍能正常使用。
 

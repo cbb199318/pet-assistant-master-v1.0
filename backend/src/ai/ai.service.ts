@@ -185,6 +185,23 @@ export class AiService {
     return '抱歉，我暂时无法提供健康建议，请稍后再试。';
   }
 
+  private getProviderErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof Error && error.message?.trim()) {
+      return error.message.trim();
+    }
+
+    return fallback;
+  }
+
+  private isServiceErrorMessage(content?: string) {
+    return Boolean(
+      content &&
+        /(配置异常|暂未配置|请求超时|调用失败|无效或已失效|未采集到有效声音|录音文件过短|录音过短)/.test(
+          content,
+        ),
+    );
+  }
+
   private normalizeMessage(message: any): AiConversationMessage | null {
     if (!message || !['user', 'assistant'].includes(message.role)) {
       return null;
@@ -602,7 +619,7 @@ export class AiService {
         );
       } catch (error) {
         console.error('Qwen image analysis error:', error);
-        response = this.getFallbackMessage('image');
+        response = this.getProviderErrorMessage(error, this.getFallbackMessage('image'));
       }
     }
 
@@ -667,7 +684,7 @@ export class AiService {
           )) || '未能识别出清晰语音内容，请重试。';
       } catch (error) {
         console.error('Qwen audio transcription error:', error);
-        transcript = '语音转写失败，请稍后重试。';
+        transcript = this.getProviderErrorMessage(error, '语音转写失败，请稍后重试。');
       }
     }
 
@@ -681,6 +698,30 @@ export class AiService {
       content: transcript,
       audioUrl,
     };
+
+    if (this.isServiceErrorMessage(transcript)) {
+      const savedConversation = await this.saveConversation(
+        userId,
+        [
+          ...baseMessages,
+          audioMessage,
+          {
+            role: 'assistant',
+            type: 'text',
+            content: transcript,
+          },
+        ],
+        conversationId,
+        resolvedPetId || undefined,
+      );
+
+      return {
+        response: transcript,
+        transcript,
+        conversationId: savedConversation.id,
+        audioUrl,
+      };
+    }
 
     const chatResult = await this.chat(
       userId,

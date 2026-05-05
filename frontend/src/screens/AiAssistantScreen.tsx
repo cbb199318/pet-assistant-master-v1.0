@@ -78,9 +78,6 @@ const getAudioFileExtension = (mimeType: string) => {
   return '.webm';
 };
 
-const isFallbackMessage = (content?: string) =>
-  Boolean(content && /(暂未配置|无法提供|稍后再试)/.test(content));
-
 const AiAssistantScreen = () => {
   const flatListRef = useRef<FlatList>(null);
   const hasResolvedInitialPetRef = useRef(false);
@@ -679,9 +676,6 @@ const AiAssistantScreen = () => {
         >
           {item.content}
         </Text>
-        {item.role === 'assistant' && isFallbackMessage(item.content) ? (
-          <Text style={styles.messageHintText}>可先体验图片上传、语音输入与语音播报界面，配置外部 Key 后即可返回真实 AI 结果。</Text>
-        ) : null}
         {item.role === 'assistant' && ttsAudioUrl ? (
           <TouchableOpacity
             style={styles.ttsPlayButton}
@@ -1321,12 +1315,6 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 15,
     lineHeight: 22,
-  },
-  messageHintText: {
-    marginTop: 8,
-    fontSize: 12,
-    lineHeight: 18,
-    color: '#6b7c73',
   },
   userMessageText: {
     color: '#1976D2',

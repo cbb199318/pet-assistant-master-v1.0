@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { communityApi, getApiErrorMessage } from '../services/api';
+import { communityApi, getApiErrorMessage, resolveMediaUrl } from '../services/api';
 
 const PostDetailScreen = ({ navigation, route }: any) => {
   const { postId } = route.params;
@@ -123,6 +124,9 @@ const PostDetailScreen = ({ navigation, route }: any) => {
             <Text style={styles.postMeta}>
               {post.author?.nickname || '宠物主人'} · {new Date(post.created_at).toLocaleString('zh-CN')}
             </Text>
+            {post.images?.length ? (
+              <Image source={{ uri: resolveMediaUrl(post.images[0]) }} style={styles.postImage} />
+            ) : null}
             <Text style={styles.postContent}>{post.content}</Text>
             <View style={styles.actionRow}>
               <TouchableOpacity style={styles.actionChip} onPress={handleLike}>
@@ -213,6 +217,13 @@ const styles = StyleSheet.create({
   },
   postTitle: { fontSize: 20, fontWeight: '700', color: '#243029', marginBottom: 10 },
   postMeta: { color: '#758079', fontSize: 13, marginBottom: 12 },
+  postImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 14,
+    marginBottom: 14,
+    backgroundColor: '#eef3ef',
+  },
   postContent: { color: '#485650', fontSize: 15, lineHeight: 24 },
   actionRow: { flexDirection: 'row', gap: 12, marginTop: 16 },
   actionChip: {

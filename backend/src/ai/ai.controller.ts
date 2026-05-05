@@ -21,6 +21,8 @@ import type {
   UploadedImageFile,
 } from './ai.types';
 
+const AUDIO_FILE_EXTENSION_PATTERN = /\.(m4a|mp3|wav|webm|ogg|aac)$/i;
+
 @Controller('api/ai')
 @UseGuards(AuthGuard('jwt'))
 export class AiController {
@@ -107,7 +109,15 @@ export class AiController {
         fileSize: AI_AUDIO_UPLOAD_LIMIT,
       },
       fileFilter: (_req, file, callback) => {
-        if (!file.mimetype.startsWith('audio/') && !file.mimetype.includes('webm')) {
+        const mimetype = (file.mimetype || '').toLowerCase();
+        const originalname = file.originalname || '';
+        const isAudioMime =
+          mimetype.startsWith('audio/') ||
+          mimetype.includes('webm') ||
+          mimetype === 'application/octet-stream';
+        const isAudioExtension = AUDIO_FILE_EXTENSION_PATTERN.test(originalname);
+
+        if (!isAudioMime && !isAudioExtension) {
           return callback(new BadRequestException('仅支持上传音频文件'), false);
         }
         callback(null, true);

@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getApiErrorMessage, knowledgeApi } from '../services/api';
+import { getApiErrorMessage, knowledgeApi, resolveMediaUrl } from '../services/api';
 
 const ArticleDetailScreen = ({ navigation, route }: any) => {
   const { articleId } = route.params;
@@ -74,7 +74,7 @@ const ArticleDetailScreen = ({ navigation, route }: any) => {
       ) : (
         <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
           {article.cover_image ? (
-            <Image source={{ uri: article.cover_image }} style={styles.coverImage} />
+            <Image source={{ uri: resolveMediaUrl(article.cover_image) }} style={styles.coverImage} />
           ) : null}
           <View style={styles.articleCard}>
             <Text style={styles.articleTitle}>{article.title}</Text>

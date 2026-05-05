@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getApiErrorMessage, knowledgeApi } from '../services/api';
+import { getApiErrorMessage, knowledgeApi, resolveMediaUrl } from '../services/api';
 
 const KnowledgeScreen = ({ navigation }: any) => {
   const [categories, setCategories] = useState<any[]>([]);
@@ -98,7 +98,7 @@ const KnowledgeScreen = ({ navigation }: any) => {
     >
       {article.cover_image ? (
         <Image
-          source={{ uri: article.cover_image }}
+          source={{ uri: resolveMediaUrl(article.cover_image) }}
           style={compact ? styles.recommendedImage : styles.articleImage}
         />
       ) : null}
@@ -170,6 +170,12 @@ const KnowledgeScreen = ({ navigation }: any) => {
                   activeOpacity={0.9}
                   onPress={() => navigation.navigate('ArticleDetail', { articleId: item.id })}
                 >
+                  {item.cover_image ? (
+                    <Image
+                      source={{ uri: resolveMediaUrl(item.cover_image) }}
+                      style={styles.productImage}
+                    />
+                  ) : null}
                   <Text style={styles.productTitle}>{item.title}</Text>
                   <Text style={styles.productDescription}>
                     {item.recommendation_reason || item.content || '点击查看推荐详情'}
@@ -354,9 +360,8 @@ const styles = StyleSheet.create({
   productCard: {
     width: 188,
     marginLeft: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
     borderRadius: 14,
+    overflow: 'hidden',
     backgroundColor: '#ffffff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -364,22 +369,32 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 4,
   },
+  productImage: {
+    width: '100%',
+    height: 92,
+    backgroundColor: '#eef3ef',
+  },
   productTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: '#243029',
+    paddingHorizontal: 14,
+    paddingTop: 12,
     marginBottom: 8,
   },
   productDescription: {
     fontSize: 12,
     color: '#64736b',
     lineHeight: 18,
+    paddingHorizontal: 14,
   },
   productMeta: {
     marginTop: 8,
     fontSize: 12,
     color: '#4CAF50',
     fontWeight: '600',
+    paddingHorizontal: 14,
+    paddingBottom: 14,
   },
   communityCard: {
     marginHorizontal: 16,

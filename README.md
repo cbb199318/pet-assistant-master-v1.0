@@ -258,9 +258,10 @@ DEEPSEEK_API_KEY=你的密钥
 DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 DEEPSEEK_TEXT_MODEL=deepseek-chat
 QWEN_API_KEY=你的密钥
-QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
-QWEN_VISION_MODEL=qwen3-vl-flash
-QWEN_AUDIO_MODEL=qwen3.5-omni-flash
+QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_VISION_MODEL=qwen3.5-omni-plus
+QWEN_AUDIO_MODEL=qwen3.5-omni-plus
+QWEN_AUDIO_VOICE=Tina
 ```
 
 说明：
@@ -271,6 +272,8 @@ QWEN_AUDIO_MODEL=qwen3.5-omni-flash
   - 图片理解
 - `Qwen Audio`
   - 语音转写
+  - 语音播报默认使用 `Tina` 音色，如需自定义请确保该模型支持对应 voice
+- 如果你的 Key 是在阿里云国内地域创建的，请使用 `dashscope.aliyuncs.com`；北京和新加坡地域的 Key 不通用
 
 未配置时，前端仍可正常请求，但会收到清晰的降级提示。
 

@@ -19,7 +19,7 @@ const DEMO_USER = {
   password: 'demo123456',
   nickname: '答辩演示用户',
   email: 'demo.user@pet.local',
-  avatar: '/uploads/demo/user-avatar.svg',
+  avatar: '/uploads/demo/user-avatar.png',
 };
 
 const DEMO_PETS = [
@@ -30,7 +30,7 @@ const DEMO_PETS = [
     gender: 'male' as const,
     birthday: '2022-04-18',
     sterilized: false,
-    avatar: '/uploads/demo/dog-avatar.svg',
+    avatar: '/uploads/demo/dog-avatar.png',
   },
   {
     name: '奶糖',
@@ -39,7 +39,7 @@ const DEMO_PETS = [
     gender: 'female' as const,
     birthday: '2023-02-08',
     sterilized: true,
-    avatar: '/uploads/demo/cat-avatar.svg',
+    avatar: '/uploads/demo/cat-avatar.png',
   },
 ];
 
@@ -48,6 +48,22 @@ const DEMO_CATEGORIES = [
   { name: '日常护理技巧', description: '用于展示喂食、遛狗、清洁和陪伴护理内容。' },
   { name: '宠物用品推荐', description: '用于展示答辩中的用品推荐和选购理由。' },
 ];
+
+const DEMO_POST_IMAGES = {
+  walking: '/uploads/demo/real-final/community-walking.jpg',
+  checkup: '/uploads/demo/real-final/community-checkup.jpg',
+  supplies: '/uploads/demo/real-final/community-supplies.jpg',
+};
+
+const DEMO_ARTICLE_IMAGES = {
+  vaccine: '/uploads/demo/real-final/article-vaccine.jpg',
+  deworming: '/uploads/demo/real-final/article-deworming.jpg',
+  carePlan: '/uploads/demo/real-final/article-care-plan.jpg',
+  ocr: '/uploads/demo/real-final/article-ocr.jpg',
+  bowl: '/uploads/demo/real-final/product-water-bowl.jpg',
+  folder: '/uploads/demo/real-final/product-record-folder.jpg',
+  board: '/uploads/demo/real-final/product-reminder-board.jpg',
+};
 
 @Injectable()
 export class DemoSeedService implements OnModuleInit {
@@ -171,7 +187,7 @@ export class DemoSeedService implements OnModuleInit {
       next_date: '2026-02-16',
       hospital: '友宠动物医院',
       doctor: '王医生',
-      record_image_url: '/uploads/demo/medical-record.svg',
+      record_image_url: '/uploads/demo/medical-record.png',
       notes: '用于演示 OCR 回填后的手动确认结果。',
     });
 
@@ -182,7 +198,7 @@ export class DemoSeedService implements OnModuleInit {
       next_date: '2026-03-09',
       hospital: '安心宠物门诊',
       doctor: '李医生',
-      record_image_url: '/uploads/demo/medical-record.svg',
+      record_image_url: '/uploads/demo/medical-record.png',
       notes: '答辩展示用记录，带机构与医生信息。',
     });
 
@@ -194,7 +210,7 @@ export class DemoSeedService implements OnModuleInit {
       next_date: '2025-07-02',
       hospital: '友宠动物医院',
       doctor: '王医生',
-      record_image_url: '/uploads/demo/medical-record.svg',
+      record_image_url: '/uploads/demo/medical-record.png',
       notes: '体内外驱虫一体化记录示例。',
     });
 
@@ -206,7 +222,7 @@ export class DemoSeedService implements OnModuleInit {
       next_date: '2025-07-15',
       hospital: '安心宠物门诊',
       doctor: '周医生',
-      record_image_url: '/uploads/demo/medical-record.svg',
+      record_image_url: '/uploads/demo/medical-record.png',
       notes: '用于演示驱虫提醒和历史留档。',
     });
 
@@ -219,7 +235,7 @@ export class DemoSeedService implements OnModuleInit {
       temperature: 38.4,
       diagnosis: '整体状态稳定，适合继续规律运动。',
       recommendations: '保持早晚散步和定时补水。',
-      record_image_url: '/uploads/demo/medical-record.svg',
+      record_image_url: '/uploads/demo/medical-record.png',
     });
 
     await this.ensureCheckup({
@@ -231,7 +247,7 @@ export class DemoSeedService implements OnModuleInit {
       temperature: 38.6,
       diagnosis: '牙龈轻微敏感，需要加强日常护理。',
       recommendations: '建议每周洁牙护理并关注饮水量。',
-      record_image_url: '/uploads/demo/medical-record.svg',
+      record_image_url: '/uploads/demo/medical-record.png',
     });
   }
 
@@ -271,7 +287,7 @@ export class DemoSeedService implements OnModuleInit {
       user,
       title: '演示帖：今天的遛狗打卡',
       content: '可乐今天完成了傍晚散步，路线和完成状态会同步到护理计划展示。',
-      images: ['/uploads/demo/community-post.svg'],
+      images: [DEMO_POST_IMAGES.walking],
       likes: 12,
       status: 'approved',
     });
@@ -280,7 +296,7 @@ export class DemoSeedService implements OnModuleInit {
       user,
       title: '演示帖：奶糖的体检复查记录',
       content: '体检页已经补充了医院、医生和建议字段，适合现场展示完整链路。',
-      images: ['/uploads/demo/community-post.svg'],
+      images: [DEMO_POST_IMAGES.checkup],
       likes: 8,
       status: 'approved',
     });
@@ -289,7 +305,7 @@ export class DemoSeedService implements OnModuleInit {
       user,
       title: '演示帖：用品推荐真的省心吗',
       content: '知识页现在能从后台维护推荐用品内容，这条帖子用于承接社区互动演示。',
-      images: [],
+      images: [DEMO_POST_IMAGES.supplies],
       likes: 6,
       status: 'approved',
     });
@@ -344,7 +360,7 @@ export class DemoSeedService implements OnModuleInit {
         '这篇文章用于展示知识详情页和后台推荐位。内容重点说明疫苗记录不仅要保存日期，还要留存医院、医生和图片凭证，方便后续复查与补打。',
       kind: 'knowledge',
       status: 'published',
-      cover_image: '/uploads/demo/knowledge-cover.svg',
+      cover_image: DEMO_ARTICLE_IMAGES.vaccine,
       category: categoryMap.get('宠物健康管理')!,
       is_recommended: true,
       sort_order: 100,
@@ -357,7 +373,7 @@ export class DemoSeedService implements OnModuleInit {
         '这篇文章用于展示护理计划与健康管理的关系。答辩时可以结合今日待办说明高频操作从手动记录升级为计划式管理。',
       kind: 'knowledge',
       status: 'published',
-      cover_image: '/uploads/demo/knowledge-cover.svg',
+      cover_image: DEMO_ARTICLE_IMAGES.deworming,
       category: categoryMap.get('宠物健康管理')!,
       is_recommended: true,
       sort_order: 90,
@@ -370,7 +386,7 @@ export class DemoSeedService implements OnModuleInit {
         '这篇文章用于解释为什么高频操作不该每次手填。配合首页今日待办，能够直观看到计划、执行和留痕三个阶段。',
       kind: 'knowledge',
       status: 'published',
-      cover_image: '/uploads/demo/knowledge-cover.svg',
+      cover_image: DEMO_ARTICLE_IMAGES.carePlan,
       category: categoryMap.get('日常护理技巧')!,
       is_recommended: false,
       sort_order: 80,
@@ -383,7 +399,7 @@ export class DemoSeedService implements OnModuleInit {
         '这篇文章用于承接健康记录拍照上传功能，强调拍照、OCR 回填、手动修正和保存回显的完整体验。',
       kind: 'knowledge',
       status: 'published',
-      cover_image: '/uploads/demo/knowledge-cover.svg',
+      cover_image: DEMO_ARTICLE_IMAGES.ocr,
       category: categoryMap.get('日常护理技巧')!,
       is_recommended: false,
       sort_order: 70,
@@ -396,7 +412,7 @@ export class DemoSeedService implements OnModuleInit {
         '用于展示后台可维护的用品推荐内容。推荐理由强调外出遛狗、体检排队和长时出行时的便携补水体验。',
       kind: 'product',
       status: 'published',
-      cover_image: '/uploads/demo/product-cover.svg',
+      cover_image: DEMO_ARTICLE_IMAGES.bowl,
       category: categoryMap.get('宠物用品推荐')!,
       is_recommended: true,
       sort_order: 95,
@@ -409,7 +425,7 @@ export class DemoSeedService implements OnModuleInit {
         '用于展示健康管理扩展价值。推荐理由强调把驱虫药、疫苗凭证和医院单据收纳在同一套工具中。',
       kind: 'product',
       status: 'published',
-      cover_image: '/uploads/demo/product-cover.svg',
+      cover_image: DEMO_ARTICLE_IMAGES.folder,
       category: categoryMap.get('宠物用品推荐')!,
       is_recommended: true,
       sort_order: 85,
@@ -422,7 +438,7 @@ export class DemoSeedService implements OnModuleInit {
         '用于展示护理计划之外的生活方式补充。推荐理由强调在多人照顾宠物时减少重复喂食和遗漏执行。',
       kind: 'product',
       status: 'published',
-      cover_image: '/uploads/demo/product-cover.svg',
+      cover_image: DEMO_ARTICLE_IMAGES.board,
       category: categoryMap.get('宠物用品推荐')!,
       is_recommended: true,
       sort_order: 75,
@@ -594,6 +610,11 @@ export class DemoSeedService implements OnModuleInit {
         comments: 0,
         status: input.status,
       });
+    } else {
+      post.content = input.content;
+      post.images = input.images;
+      post.likes = input.likes;
+      post.status = input.status;
     }
 
     return this.postRepository.save(post);
@@ -696,6 +717,15 @@ export class DemoSeedService implements OnModuleInit {
         recommendation_reason: input.recommendation_reason,
         category: input.category,
       });
+    } else {
+      article.content = input.content;
+      article.cover_image = input.cover_image;
+      article.kind = input.kind;
+      article.status = input.status;
+      article.is_recommended = input.is_recommended;
+      article.sort_order = input.sort_order;
+      article.recommendation_reason = input.recommendation_reason;
+      article.category = input.category;
     }
 
     return this.articleRepository.save(article);

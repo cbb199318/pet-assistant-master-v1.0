@@ -6,7 +6,6 @@ import {
   Modal,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -22,9 +21,6 @@ const SettingsScreen = ({ navigation }: any) => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
-  const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
-  const [locationEnabled, setLocationEnabled] = useState(true);
   const [profileForm, setProfileForm] = useState({ nickname: '', avatar: '' });
   const [passwordForm, setPasswordForm] = useState({ oldPassword: '', newPassword: '' });
   const [email, setEmail] = useState('');
@@ -249,24 +245,6 @@ const SettingsScreen = ({ navigation }: any) => {
               <Text style={styles.menuText}>绑定邮箱</Text>
               <Text style={styles.menuArrow}>→</Text>
             </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>通知设置</Text>
-          <View style={styles.card}>
-            <View style={styles.menuItem}>
-              <Text style={styles.menuText}>推送通知</Text>
-              <Switch value={notifications} onValueChange={setNotifications} />
-            </View>
-            <View style={styles.menuItem}>
-              <Text style={styles.menuText}>深色模式</Text>
-              <Switch value={darkMode} onValueChange={setDarkMode} />
-            </View>
-            <View style={[styles.menuItem, styles.lastItem]}>
-              <Text style={styles.menuText}>位置服务</Text>
-              <Switch value={locationEnabled} onValueChange={setLocationEnabled} />
-            </View>
           </View>
         </View>
 

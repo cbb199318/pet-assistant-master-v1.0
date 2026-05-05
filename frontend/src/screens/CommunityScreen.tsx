@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import DatePickerField from '../components/DatePickerField';
 import { useFocusEffect } from '@react-navigation/native';
-import { communityApi, getApiErrorMessage } from '../services/api';
+import { communityApi, getApiErrorMessage, resolveMediaUrl } from '../services/api';
 
 type TabKey = 'all' | 'mine' | 'comments' | 'bookings';
 
@@ -234,7 +234,7 @@ const CommunityScreen = ({ navigation }: any) => {
     >
       <View style={styles.postHeader}>
         {post.user?.avatar ? (
-          <Image source={{ uri: post.user.avatar }} style={styles.avatar} />
+          <Image source={{ uri: resolveMediaUrl(post.user.avatar) }} style={styles.avatar} />
         ) : (
           <View style={styles.avatarFallback}>
             <Text style={styles.avatarFallbackText}>
@@ -254,6 +254,9 @@ const CommunityScreen = ({ navigation }: any) => {
       <Text style={styles.postContent} numberOfLines={4}>
         {post.content}
       </Text>
+      {post.images?.length ? (
+        <Image source={{ uri: resolveMediaUrl(post.images[0]) }} style={styles.postImage} />
+      ) : null}
 
       <View style={styles.postFooter}>
         <TouchableOpacity onPress={() => handleLikePost(post.id)}>
@@ -792,6 +795,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#4a5951',
     lineHeight: 23,
+  },
+  postImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: 14,
+    marginTop: 14,
+    backgroundColor: '#eef3ef',
   },
   postFooter: {
     flexDirection: 'row',

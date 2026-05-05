@@ -31,7 +31,9 @@ frontend/.expo/
 
 # Local databases and uploads
 *.sqlite
-backend/uploads/
+backend/uploads/*
+!backend/uploads/demo/
+!backend/uploads/demo/**
 
 # Coverage and logs
 coverage/
