@@ -1,12 +1,12 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { execFile } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
+import { existsSync } from 'fs';
 import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { extname, join } from 'path';
 import { Repository } from 'typeorm';
 import axios from 'axios';
-import ffmpegPath from 'ffmpeg-static';
 import { AiConversation } from './ai-conversation.entity';
 import { User } from '../users/user.entity';
 import { AI_UPLOAD_DIR, AI_UPLOAD_PUBLIC_PREFIX } from './ai.constants';
@@ -454,15 +454,46 @@ export class AiService {
     return mimetype.startsWith('audio/') ? '.m4a' : '.jpg';
   }
 
+  private resolveFfmpegPath() {
+    const envPath = process.env.FFMPEG_PATH?.trim();
+    if (envPath && existsSync(envPath)) {
+      return envPath;
+    }
+
+    try {
+      const command = process.platform === 'win32' ? 'where' : 'which';
+      const output = execFileSync(command, ['ffmpeg'], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
+        .split(/\r?\n/)
+        .map((item) => item.trim())
+        .find(Boolean);
+
+      if (output) {
+        return output;
+      }
+    } catch {}
+
+    try {
+      const staticPath = require('ffmpeg-static');
+      if (typeof staticPath === 'string' && staticPath.trim() && existsSync(staticPath)) {
+        return staticPath;
+      }
+    } catch {}
+
+    return '';
+  }
+
   private async transcodeAudioToMp3(file: UploadedAudioFile) {
     if (!file.buffer?.length || file.buffer.length < 1024) {
       throw new Error('录音文件过短或未采集到有效声音');
     }
 
-    if (!ffmpegPath) {
-      throw new Error('ffmpeg static binary 不可用');
+    const resolvedFfmpegPath = this.resolveFfmpegPath();
+    if (!resolvedFfmpegPath) {
+      throw new Error('未找到 ffmpeg。请先安装系统 ffmpeg，或在环境变量中设置 FFMPEG_PATH。');
     }
-    const resolvedFfmpegPath = ffmpegPath;
 
     const sourceExtension = this.getMediaExtension(file.mimetype, file.originalname);
     const sourcePath = join(
