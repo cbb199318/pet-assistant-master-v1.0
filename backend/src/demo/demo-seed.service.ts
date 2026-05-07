@@ -65,6 +65,36 @@ const DEMO_ARTICLE_IMAGES = {
   board: '/uploads/demo/real-final/product-reminder-board.jpg',
 };
 
+const DEMO_BOOKINGS = [
+  {
+    serviceType: 'hospital',
+    serviceName: '安心宠物门诊年度复查',
+    serviceAddress: '上海市徐汇区演示路 18 号',
+    bookingDateOffset: 3,
+    bookingTime: '10:00',
+    status: 'pending',
+    notes: '用于展示待确认状态和后台统计。',
+  },
+  {
+    serviceType: 'hospital',
+    serviceName: '友宠动物医院疫苗加强针',
+    serviceAddress: '上海市长宁区虹桥路 220 号',
+    bookingDateOffset: 6,
+    bookingTime: '14:30',
+    status: 'confirmed',
+    notes: '用于展示已确认状态和可选时间段。',
+  },
+  {
+    serviceType: 'grooming',
+    serviceName: '尾巴星球洗护美容',
+    serviceAddress: '上海市静安区安远路 66 号',
+    bookingDateOffset: 9,
+    bookingTime: '11:30',
+    status: 'completed',
+    notes: '用于展示洗护预约完成后的历史记录。',
+  },
+];
+
 @Injectable()
 export class DemoSeedService implements OnModuleInit {
   private readonly logger = new Logger(DemoSeedService.name);
@@ -326,15 +356,18 @@ export class DemoSeedService implements OnModuleInit {
       content: '预约、知识推荐和社区内容已经能串成完整讲解路径。',
     });
 
-    await this.ensureBooking({
-      user,
-      serviceType: 'hospital',
-      serviceName: '安心宠物门诊年度复查',
-      serviceAddress: '上海市徐汇区演示路 18 号',
-      bookingDate: this.getDateOffset(3),
-      bookingTime: '10:00',
-      notes: '用于展示我的预约、状态和后台统计。',
-    });
+    for (const booking of DEMO_BOOKINGS) {
+      await this.ensureBooking({
+        user,
+        serviceType: booking.serviceType,
+        serviceName: booking.serviceName,
+        serviceAddress: booking.serviceAddress,
+        bookingDate: this.getDateOffset(booking.bookingDateOffset),
+        bookingTime: booking.bookingTime,
+        status: booking.status,
+        notes: booking.notes,
+      });
+    }
   }
 
   private async ensureKnowledgeContent() {
@@ -663,6 +696,7 @@ export class DemoSeedService implements OnModuleInit {
     serviceAddress: string;
     bookingDate: string;
     bookingTime: string;
+    status?: string;
     notes?: string;
   }) {
     let booking = await this.bookingRepository.findOne({
@@ -681,9 +715,18 @@ export class DemoSeedService implements OnModuleInit {
         serviceAddress: input.serviceAddress,
         bookingDate: new Date(input.bookingDate),
         bookingTime: input.bookingTime,
+        status: input.status || 'pending',
         notes: input.notes,
         user: input.user,
       });
+    } else {
+      booking.serviceType = input.serviceType;
+      booking.serviceName = input.serviceName;
+      booking.serviceAddress = input.serviceAddress;
+      booking.bookingDate = new Date(input.bookingDate);
+      booking.bookingTime = input.bookingTime;
+      booking.status = input.status || booking.status;
+      booking.notes = input.notes || null;
     }
 
     return this.bookingRepository.save(booking);

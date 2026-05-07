@@ -23,6 +23,69 @@ const tabs: Array<{ key: TabKey; label: string }> = [
   { key: 'bookings', label: '我的预约' },
 ];
 
+const BOOKING_SERVICE_OPTIONS = [
+  {
+    serviceType: 'hospital',
+    label: '医院问诊',
+    locations: [
+      {
+        name: '安心宠物门诊',
+        address: '上海市徐汇区演示路 18 号',
+        description: '适合疫苗复查、体检咨询与常规化验。',
+        timeSlots: ['10:00', '14:30', '16:00'],
+      },
+      {
+        name: '友宠动物医院',
+        address: '上海市长宁区虹桥路 220 号',
+        description: '适合驱虫复查、皮肤检查与年度复诊。',
+        timeSlots: ['09:30', '11:00', '15:30'],
+      },
+    ],
+  },
+  {
+    serviceType: 'grooming',
+    label: '洗护美容',
+    locations: [
+      {
+        name: '尾巴星球洗护美容',
+        address: '上海市静安区安远路 66 号',
+        description: '提供洗澡、修毛、指甲护理等服务。',
+        timeSlots: ['11:30', '13:30', '17:00'],
+      },
+      {
+        name: '喵汪生活馆',
+        address: '上海市普陀区岚皋路 89 号',
+        description: '适合基础洗护、除毛和香波护理。',
+        timeSlots: ['10:30', '14:00', '18:30'],
+      },
+    ],
+  },
+  {
+    serviceType: 'boarding',
+    label: '寄养托管',
+    locations: [
+      {
+        name: '陪伴宠物寄养中心',
+        address: '上海市浦东新区锦绣路 288 号',
+        description: '适合节假日寄养、白天托管和短住观察。',
+        timeSlots: ['09:00', '12:00', '19:00'],
+      },
+    ],
+  },
+  {
+    serviceType: 'other',
+    label: '其他服务',
+    locations: [
+      {
+        name: '宠物行为训练工作室',
+        address: '上海市杨浦区国顺东路 155 号',
+        description: '适合行为咨询、基础社交训练和家庭陪伴建议。',
+        timeSlots: ['10:00', '15:00', '18:00'],
+      },
+    ],
+  },
+];
+
 const CommunityScreen = ({ navigation }: any) => {
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [posts, setPosts] = useState<any[]>([]);
@@ -37,12 +100,17 @@ const CommunityScreen = ({ navigation }: any) => {
   const [content, setContent] = useState('');
   const [bookingForm, setBookingForm] = useState({
     serviceType: 'hospital',
-    serviceName: '',
-    serviceAddress: '',
+    serviceName: BOOKING_SERVICE_OPTIONS[0].locations[0].name,
+    serviceAddress: BOOKING_SERVICE_OPTIONS[0].locations[0].address,
     bookingDate: '',
     bookingTime: '',
     notes: '',
   });
+  const selectedServiceOption =
+    BOOKING_SERVICE_OPTIONS.find((item) => item.serviceType === bookingForm.serviceType) ||
+    BOOKING_SERVICE_OPTIONS[0];
+  const selectedLocation =
+    selectedServiceOption.locations.find((item) => item.name === bookingForm.serviceName) || null;
   const fetchCommunityData = async () => {
     try {
       const [allPostResponse, myPostResponse, myCommentResponse, bookingResponse] = await Promise.all([
@@ -89,12 +157,36 @@ const CommunityScreen = ({ navigation }: any) => {
     setContent('');
     setBookingForm({
       serviceType: 'hospital',
-      serviceName: '',
-      serviceAddress: '',
+      serviceName: BOOKING_SERVICE_OPTIONS[0].locations[0].name,
+      serviceAddress: BOOKING_SERVICE_OPTIONS[0].locations[0].address,
       bookingDate: '',
       bookingTime: '',
       notes: '',
     });
+  };
+
+  const handleBookingServiceTypeChange = (serviceType: string) => {
+    const nextService =
+      BOOKING_SERVICE_OPTIONS.find((item) => item.serviceType === serviceType) ||
+      BOOKING_SERVICE_OPTIONS[0];
+    const firstLocation = nextService.locations[0];
+
+    setBookingForm((prev) => ({
+      ...prev,
+      serviceType,
+      serviceName: firstLocation?.name || '',
+      serviceAddress: firstLocation?.address || '',
+      bookingTime: '',
+    }));
+  };
+
+  const handleBookingLocationSelect = (name: string, address: string) => {
+    setBookingForm((prev) => ({
+      ...prev,
+      serviceName: name,
+      serviceAddress: address,
+      bookingTime: '',
+    }));
   };
 
   const handleCreateOrUpdatePost = async () => {
@@ -485,7 +577,7 @@ const CommunityScreen = ({ navigation }: any) => {
               <TouchableOpacity
                 key={value}
                 style={[styles.bookingTypeChip, bookingForm.serviceType === value && styles.bookingTypeChipActive]}
-                onPress={() => setBookingForm((prev) => ({ ...prev, serviceType: value }))}
+                onPress={() => handleBookingServiceTypeChange(value)}
               >
                 <Text style={[styles.bookingTypeChipText, bookingForm.serviceType === value && styles.bookingTypeChipTextActive]}>
                   {label}
@@ -493,18 +585,25 @@ const CommunityScreen = ({ navigation }: any) => {
               </TouchableOpacity>
             ))}
           </View>
-          <TextInput
-            style={styles.titleInput}
-            value={bookingForm.serviceName}
-            onChangeText={(serviceName) => setBookingForm((prev) => ({ ...prev, serviceName }))}
-            placeholder="服务名称，例如某某宠物医院"
-          />
-          <TextInput
-            style={styles.titleInput}
-            value={bookingForm.serviceAddress}
-            onChangeText={(serviceAddress) => setBookingForm((prev) => ({ ...prev, serviceAddress }))}
-            placeholder="服务地址"
-          />
+          <Text style={styles.bookingSectionLabel}>选择门店</Text>
+          <View style={styles.bookingLocationList}>
+            {selectedServiceOption.locations.map((item) => {
+              const active = bookingForm.serviceName === item.name;
+              return (
+                <TouchableOpacity
+                  key={item.name}
+                  style={[styles.bookingLocationCard, active && styles.bookingLocationCardActive]}
+                  onPress={() => handleBookingLocationSelect(item.name, item.address)}
+                >
+                  <Text style={[styles.bookingLocationName, active && styles.bookingLocationNameActive]}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.bookingLocationAddress}>{item.address}</Text>
+                  <Text style={styles.bookingLocationDescription}>{item.description}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
           <View style={styles.bookingDateRow}>
             <View style={styles.bookingDateInput}>
               <DatePickerField
@@ -514,12 +613,23 @@ const CommunityScreen = ({ navigation }: any) => {
                 title="选择预约日期"
               />
             </View>
-            <TextInput
-              style={[styles.titleInput, styles.bookingDateInput]}
-              value={bookingForm.bookingTime}
-              onChangeText={(bookingTime) => setBookingForm((prev) => ({ ...prev, bookingTime }))}
-              placeholder="HH:mm"
-            />
+          </View>
+          <Text style={styles.bookingSectionLabel}>选择时间段</Text>
+          <View style={styles.bookingTimeSlotRow}>
+            {(selectedLocation?.timeSlots || []).map((slot) => {
+              const active = bookingForm.bookingTime === slot;
+              return (
+                <TouchableOpacity
+                  key={slot}
+                  style={[styles.bookingTimeSlot, active && styles.bookingTimeSlotActive]}
+                  onPress={() => setBookingForm((prev) => ({ ...prev, bookingTime: slot }))}
+                >
+                  <Text style={[styles.bookingTimeSlotText, active && styles.bookingTimeSlotTextActive]}>
+                    {slot}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
           <TextInput
             style={styles.contentInput}
@@ -671,10 +781,71 @@ const styles = StyleSheet.create({
   },
   bookingDateRow: {
     flexDirection: 'row',
-    gap: 12,
   },
   bookingDateInput: {
-    flex: 1,
+    width: '100%',
+  },
+  bookingSectionLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#42544a',
+    marginBottom: 10,
+  },
+  bookingLocationList: {
+    gap: 10,
+    marginBottom: 14,
+  },
+  bookingLocationCard: {
+    borderWidth: 1,
+    borderColor: '#dce7df',
+    borderRadius: 14,
+    padding: 14,
+    backgroundColor: '#f9fbfa',
+  },
+  bookingLocationCardActive: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#eef9f0',
+  },
+  bookingLocationName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#243029',
+  },
+  bookingLocationNameActive: {
+    color: '#2c8b42',
+  },
+  bookingLocationAddress: {
+    fontSize: 12,
+    color: '#607067',
+    marginTop: 6,
+  },
+  bookingLocationDescription: {
+    fontSize: 12,
+    color: '#728078',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  bookingTimeSlotRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 14,
+  },
+  bookingTimeSlot: {
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#edf2ef',
+  },
+  bookingTimeSlotActive: {
+    backgroundColor: '#4CAF50',
+  },
+  bookingTimeSlotText: {
+    color: '#4d6055',
+    fontWeight: '600',
+  },
+  bookingTimeSlotTextActive: {
+    color: '#fff',
   },
   contentInput: {
     backgroundColor: '#f5f5f5',
