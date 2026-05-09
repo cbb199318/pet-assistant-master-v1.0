@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import DatePickerField from '../components/DatePickerField';
 import { useFocusEffect } from '@react-navigation/native';
-import { communityApi, getApiErrorMessage, resolveMediaUrl } from '../services/api';
+import { communityApi, getApiErrorMessage, healthApi, resolveMediaUrl } from '../services/api';
 
 type TabKey = 'all' | 'mine' | 'comments' | 'bookings';
 
@@ -23,7 +23,30 @@ const tabs: Array<{ key: TabKey; label: string }> = [
   { key: 'bookings', label: '我的预约' },
 ];
 
-const BOOKING_SERVICE_OPTIONS = [
+interface BookingLocationOption {
+  name: string;
+  address: string;
+  description: string;
+  timeSlots: string[];
+  doctor?: string;
+  specialty?: string;
+}
+
+interface ProviderOption {
+  id: string;
+  hospital: string;
+  doctor: string;
+  specialty?: string;
+  address: string;
+}
+
+const DEFAULT_HOSPITAL_TIME_SLOTS = ['09:30', '11:00', '14:30', '16:00'];
+
+const BOOKING_SERVICE_OPTIONS: Array<{
+  serviceType: string;
+  label: string;
+  locations: BookingLocationOption[];
+}> = [
   {
     serviceType: 'hospital',
     label: '医院问诊',
@@ -86,31 +109,122 @@ const BOOKING_SERVICE_OPTIONS = [
   },
 ];
 
+const buildBookingForm = (
+  serviceOptions: Array<{
+    serviceType: string;
+    locations: BookingLocationOption[];
+  }>,
+  serviceType: string = 'hospital',
+) => {
+  const nextService =
+    serviceOptions.find((item) => item.serviceType === serviceType) || serviceOptions[0];
+  const firstLocation = nextService?.locations[0];
+
+  return {
+    serviceType: nextService?.serviceType || 'hospital',
+    serviceName: firstLocation?.name || '',
+    serviceAddress: firstLocation?.address || '',
+    bookingDate: '',
+    bookingTime: '',
+    notes: '',
+  };
+};
+
 const CommunityScreen = ({ navigation }: any) => {
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [posts, setPosts] = useState<any[]>([]);
   const [myPosts, setMyPosts] = useState<any[]>([]);
   const [myComments, setMyComments] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [providerOptions, setProviderOptions] = useState<ProviderOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [providerLoading, setProviderLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [bookingForm, setBookingForm] = useState({
-    serviceType: 'hospital',
-    serviceName: BOOKING_SERVICE_OPTIONS[0].locations[0].name,
-    serviceAddress: BOOKING_SERVICE_OPTIONS[0].locations[0].address,
-    bookingDate: '',
-    bookingTime: '',
-    notes: '',
-  });
+  const [bookingForm, setBookingForm] = useState(() => buildBookingForm(BOOKING_SERVICE_OPTIONS));
+  const bookingServiceOptions = useMemo(
+    () =>
+      BOOKING_SERVICE_OPTIONS.map((item) => {
+        if (item.serviceType !== 'hospital') {
+          return item;
+        }
+
+        const hospitalLocations = providerOptions.length
+          ? providerOptions.map((provider) => ({
+              name: provider.hospital,
+              address: provider.address,
+              doctor: provider.doctor,
+              specialty: provider.specialty,
+              description: provider.specialty ? `擅长：${provider.specialty}` : '支持常规门诊预约。',
+              timeSlots: DEFAULT_HOSPITAL_TIME_SLOTS,
+            }))
+          : item.locations;
+
+        return {
+          ...item,
+          locations: hospitalLocations,
+        };
+      }),
+    [providerOptions],
+  );
   const selectedServiceOption =
-    BOOKING_SERVICE_OPTIONS.find((item) => item.serviceType === bookingForm.serviceType) ||
-    BOOKING_SERVICE_OPTIONS[0];
+    bookingServiceOptions.find((item) => item.serviceType === bookingForm.serviceType) ||
+    bookingServiceOptions[0];
   const selectedLocation =
-    selectedServiceOption.locations.find((item) => item.name === bookingForm.serviceName) || null;
+    selectedServiceOption.locations.find(
+      (item) =>
+        item.name === bookingForm.serviceName && item.address === bookingForm.serviceAddress,
+    ) || null;
+
+  useEffect(() => {
+    const loadProviders = async () => {
+      setProviderLoading(true);
+      try {
+        setProviderOptions(await healthApi.getProviderOptions());
+      } catch {
+        setProviderOptions([]);
+      } finally {
+        setProviderLoading(false);
+      }
+    };
+
+    void loadProviders();
+  }, []);
+
+  useEffect(() => {
+    if (bookingForm.serviceType !== 'hospital') {
+      return;
+    }
+
+    const hospitalService = bookingServiceOptions.find((item) => item.serviceType === 'hospital');
+    const firstLocation = hospitalService?.locations[0];
+    if (!firstLocation) {
+      return;
+    }
+
+    const currentExists = hospitalService?.locations.some(
+      (item) =>
+        item.name === bookingForm.serviceName && item.address === bookingForm.serviceAddress,
+    );
+    if (currentExists) {
+      return;
+    }
+
+    setBookingForm((prev) => ({
+      ...prev,
+      serviceName: firstLocation.name,
+      serviceAddress: firstLocation.address,
+      bookingTime: '',
+    }));
+  }, [
+    bookingForm.serviceAddress,
+    bookingForm.serviceName,
+    bookingForm.serviceType,
+    bookingServiceOptions,
+  ]);
   const fetchCommunityData = async () => {
     try {
       const [allPostResponse, myPostResponse, myCommentResponse, bookingResponse] = await Promise.all([
@@ -155,29 +269,11 @@ const CommunityScreen = ({ navigation }: any) => {
     setEditingPostId(null);
     setTitle('');
     setContent('');
-    setBookingForm({
-      serviceType: 'hospital',
-      serviceName: BOOKING_SERVICE_OPTIONS[0].locations[0].name,
-      serviceAddress: BOOKING_SERVICE_OPTIONS[0].locations[0].address,
-      bookingDate: '',
-      bookingTime: '',
-      notes: '',
-    });
+    setBookingForm(buildBookingForm(bookingServiceOptions));
   };
 
   const handleBookingServiceTypeChange = (serviceType: string) => {
-    const nextService =
-      BOOKING_SERVICE_OPTIONS.find((item) => item.serviceType === serviceType) ||
-      BOOKING_SERVICE_OPTIONS[0];
-    const firstLocation = nextService.locations[0];
-
-    setBookingForm((prev) => ({
-      ...prev,
-      serviceType,
-      serviceName: firstLocation?.name || '',
-      serviceAddress: firstLocation?.address || '',
-      bookingTime: '',
-    }));
+    setBookingForm(buildBookingForm(bookingServiceOptions, serviceType));
   };
 
   const handleBookingLocationSelect = (name: string, address: string) => {
@@ -585,13 +681,25 @@ const CommunityScreen = ({ navigation }: any) => {
               </TouchableOpacity>
             ))}
           </View>
-          <Text style={styles.bookingSectionLabel}>选择门店</Text>
+          <Text style={styles.bookingSectionLabel}>
+            {bookingForm.serviceType === 'hospital' ? '选择已有医院' : '选择门店'}
+          </Text>
+          {bookingForm.serviceType === 'hospital' ? (
+            <Text style={styles.bookingHelperText}>
+              {providerLoading
+                ? '正在加载已有医院...'
+                : providerOptions.length
+                  ? '已接入系统中的医院库，可直接选择已有医院。'
+                  : '当前暂无可复用医院，先展示默认医院选项。'}
+            </Text>
+          ) : null}
           <View style={styles.bookingLocationList}>
             {selectedServiceOption.locations.map((item) => {
-              const active = bookingForm.serviceName === item.name;
+              const active =
+                bookingForm.serviceName === item.name && bookingForm.serviceAddress === item.address;
               return (
                 <TouchableOpacity
-                  key={item.name}
+                  key={`${item.name}-${item.address}`}
                   style={[styles.bookingLocationCard, active && styles.bookingLocationCardActive]}
                   onPress={() => handleBookingLocationSelect(item.name, item.address)}
                 >
@@ -599,6 +707,9 @@ const CommunityScreen = ({ navigation }: any) => {
                     {item.name}
                   </Text>
                   <Text style={styles.bookingLocationAddress}>{item.address}</Text>
+                  {item.doctor ? (
+                    <Text style={styles.bookingLocationMeta}>医生：{item.doctor}</Text>
+                  ) : null}
                   <Text style={styles.bookingLocationDescription}>{item.description}</Text>
                 </TouchableOpacity>
               );
@@ -791,6 +902,12 @@ const styles = StyleSheet.create({
     color: '#42544a',
     marginBottom: 10,
   },
+  bookingHelperText: {
+    fontSize: 12,
+    color: '#728078',
+    marginBottom: 12,
+    lineHeight: 18,
+  },
   bookingLocationList: {
     gap: 10,
     marginBottom: 14,
@@ -818,6 +935,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#607067',
     marginTop: 6,
+  },
+  bookingLocationMeta: {
+    fontSize: 12,
+    color: '#49685a',
+    marginTop: 4,
+    fontWeight: '600',
   },
   bookingLocationDescription: {
     fontSize: 12,
