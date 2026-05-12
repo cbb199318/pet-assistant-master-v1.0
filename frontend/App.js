@@ -23,6 +23,7 @@ import CommunityScreen from './src/screens/CommunityScreen';
 import KnowledgeScreen from './src/screens/KnowledgeScreen';
 import PostDetailScreen from './src/screens/PostDetailScreen';
 import ArticleDetailScreen from './src/screens/ArticleDetailScreen';
+import { userApi } from './src/services/api';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -104,7 +105,16 @@ export default function App() {
         ]);
 
         if (token) {
-          setInitialRouteName(lastRoute === 'Login' ? 'Login' : 'MainTabs');
+          try {
+            const response = await userApi.getProfile();
+            await AsyncStorage.setItem('user', JSON.stringify(response.user));
+            setInitialRouteName('MainTabs');
+          } catch (error) {
+            await AsyncStorage.removeItem('token');
+            await AsyncStorage.removeItem('user');
+            await AsyncStorage.removeItem('lastRoute');
+            setInitialRouteName('Login');
+          }
           return;
         }
 

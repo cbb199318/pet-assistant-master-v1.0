@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +16,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { communityApi, getApiErrorMessage, healthApi, resolveMediaUrl } from '../services/api';
 
 type TabKey = 'all' | 'mine' | 'comments' | 'bookings';
+type BookingPickerKey = 'location' | null;
 
 const tabs: Array<{ key: TabKey; label: string }> = [
   { key: 'all', label: '全部帖子' },
@@ -144,6 +146,7 @@ const CommunityScreen = ({ navigation }: any) => {
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [activeBookingPicker, setActiveBookingPicker] = useState<BookingPickerKey>(null);
   const [bookingForm, setBookingForm] = useState(() => buildBookingForm(BOOKING_SERVICE_OPTIONS));
   const bookingServiceOptions = useMemo(
     () =>
@@ -178,6 +181,9 @@ const CommunityScreen = ({ navigation }: any) => {
       (item) =>
         item.name === bookingForm.serviceName && item.address === bookingForm.serviceAddress,
     ) || null;
+  const selectedLocationLabel = selectedLocation
+    ? `${selectedLocation.name} · ${selectedLocation.address}`
+    : '请选择医院或门店';
 
   useEffect(() => {
     const loadProviders = async () => {
@@ -267,6 +273,7 @@ const CommunityScreen = ({ navigation }: any) => {
   const resetComposer = () => {
     setShowComposer(false);
     setEditingPostId(null);
+    setActiveBookingPicker(null);
     setTitle('');
     setContent('');
     setBookingForm(buildBookingForm(bookingServiceOptions));
@@ -585,6 +592,41 @@ const CommunityScreen = ({ navigation }: any) => {
     );
   };
 
+  const renderBookingSelectField = ({
+    label,
+    value,
+    placeholder,
+    onPress,
+    disabled = false,
+    helperText,
+  }: {
+    label: string;
+    value?: string;
+    placeholder: string;
+    onPress: () => void;
+    disabled?: boolean;
+    helperText?: string;
+  }) => (
+    <View style={styles.bookingSelectGroup}>
+      <Text style={styles.bookingSectionLabel}>{label}</Text>
+      {helperText ? <Text style={styles.bookingHelperText}>{helperText}</Text> : null}
+      <TouchableOpacity
+        style={[styles.bookingSelectField, disabled && styles.bookingSelectFieldDisabled]}
+        activeOpacity={0.85}
+        disabled={disabled}
+        onPress={onPress}
+      >
+        <Text
+          style={[styles.bookingSelectValue, !value && styles.bookingSelectPlaceholder, disabled && styles.bookingSelectDisabledText]}
+          numberOfLines={2}
+        >
+          {value || placeholder}
+        </Text>
+        <Text style={[styles.bookingSelectArrow, disabled && styles.bookingSelectDisabledText]}>▼</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -621,155 +663,135 @@ const CommunityScreen = ({ navigation }: any) => {
         ))}
       </View>
 
-      {showComposer && activeTab !== 'bookings' ? (
-        <View style={styles.composerCard}>
-          <Text style={styles.composerTitle}>{editingPostId ? '编辑帖子' : '发布帖子'}</Text>
-          <TextInput
-            style={styles.titleInput}
-            value={title}
-            onChangeText={setTitle}
-            placeholder="输入帖子标题"
-          />
-          <TextInput
-            style={styles.contentInput}
-            value={content}
-            onChangeText={setContent}
-            placeholder="分享你的宠物故事、经验或问题..."
-            multiline
-            numberOfLines={5}
-            maxLength={1000}
-          />
-          <View style={styles.composerActions}>
-            <TouchableOpacity
-              style={[styles.secondaryButton, submitting && styles.disabledButton]}
-              disabled={submitting}
-              onPress={resetComposer}
-            >
-              <Text style={styles.secondaryButtonText}>取消</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.primaryButton, submitting && styles.disabledButton]}
-              disabled={submitting}
-              onPress={handleCreateOrUpdatePost}
-            >
-              <Text style={styles.primaryButtonText}>
-                {submitting ? '提交中...' : editingPostId ? '保存修改' : '发布'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : null}
-
-      {showComposer && activeTab === 'bookings' ? (
-        <View style={styles.composerCard}>
-          <Text style={styles.composerTitle}>创建预约</Text>
-          <View style={styles.bookingTypeRow}>
-            {[
-              ['hospital', '医院问诊'],
-              ['grooming', '洗护美容'],
-              ['boarding', '寄养托管'],
-              ['other', '其他服务'],
-            ].map(([value, label]) => (
+      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
+        {showComposer && activeTab !== 'bookings' ? (
+          <View style={styles.composerCard}>
+            <Text style={styles.composerTitle}>{editingPostId ? '编辑帖子' : '发布帖子'}</Text>
+            <TextInput
+              style={styles.titleInput}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="输入帖子标题"
+            />
+            <TextInput
+              style={styles.contentInput}
+              value={content}
+              onChangeText={setContent}
+              placeholder="分享你的宠物故事、经验或问题..."
+              multiline
+              numberOfLines={5}
+              maxLength={1000}
+            />
+            <View style={styles.composerActions}>
               <TouchableOpacity
-                key={value}
-                style={[styles.bookingTypeChip, bookingForm.serviceType === value && styles.bookingTypeChipActive]}
-                onPress={() => handleBookingServiceTypeChange(value)}
+                style={[styles.secondaryButton, submitting && styles.disabledButton]}
+                disabled={submitting}
+                onPress={resetComposer}
               >
-                <Text style={[styles.bookingTypeChipText, bookingForm.serviceType === value && styles.bookingTypeChipTextActive]}>
-                  {label}
+                <Text style={styles.secondaryButtonText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryButton, submitting && styles.disabledButton]}
+                disabled={submitting}
+                onPress={handleCreateOrUpdatePost}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {submitting ? '提交中...' : editingPostId ? '保存修改' : '发布'}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </View>
-          <Text style={styles.bookingSectionLabel}>
-            {bookingForm.serviceType === 'hospital' ? '选择已有医院' : '选择门店'}
-          </Text>
-          {bookingForm.serviceType === 'hospital' ? (
-            <Text style={styles.bookingHelperText}>
-              {providerLoading
-                ? '正在加载已有医院...'
-                : providerOptions.length
-                  ? '已接入系统中的医院库，可直接选择已有医院。'
-                  : '当前暂无可复用医院，先展示默认医院选项。'}
-            </Text>
-          ) : null}
-          <View style={styles.bookingLocationList}>
-            {selectedServiceOption.locations.map((item) => {
-              const active =
-                bookingForm.serviceName === item.name && bookingForm.serviceAddress === item.address;
-              return (
-                <TouchableOpacity
-                  key={`${item.name}-${item.address}`}
-                  style={[styles.bookingLocationCard, active && styles.bookingLocationCardActive]}
-                  onPress={() => handleBookingLocationSelect(item.name, item.address)}
-                >
-                  <Text style={[styles.bookingLocationName, active && styles.bookingLocationNameActive]}>
-                    {item.name}
-                  </Text>
-                  <Text style={styles.bookingLocationAddress}>{item.address}</Text>
-                  {item.doctor ? (
-                    <Text style={styles.bookingLocationMeta}>医生：{item.doctor}</Text>
-                  ) : null}
-                  <Text style={styles.bookingLocationDescription}>{item.description}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          <View style={styles.bookingDateRow}>
-            <View style={styles.bookingDateInput}>
-              <DatePickerField
-                value={bookingForm.bookingDate}
-                onChange={(bookingDate) => setBookingForm((prev) => ({ ...prev, bookingDate }))}
-                placeholder="请选择预约日期"
-                title="选择预约日期"
-              />
             </View>
           </View>
-          <Text style={styles.bookingSectionLabel}>选择时间段</Text>
-          <View style={styles.bookingTimeSlotRow}>
-            {(selectedLocation?.timeSlots || []).map((slot) => {
-              const active = bookingForm.bookingTime === slot;
-              return (
+        ) : null}
+
+        {showComposer && activeTab === 'bookings' ? (
+          <View style={styles.composerCard}>
+            <Text style={styles.composerTitle}>创建预约</Text>
+            <View style={styles.bookingTypeRow}>
+              {[
+                ['hospital', '医院问诊'],
+                ['grooming', '洗护美容'],
+                ['boarding', '寄养托管'],
+                ['other', '其他服务'],
+              ].map(([value, label]) => (
                 <TouchableOpacity
-                  key={slot}
-                  style={[styles.bookingTimeSlot, active && styles.bookingTimeSlotActive]}
-                  onPress={() => setBookingForm((prev) => ({ ...prev, bookingTime: slot }))}
+                  key={value}
+                  style={[styles.bookingTypeChip, bookingForm.serviceType === value && styles.bookingTypeChipActive]}
+                  onPress={() => handleBookingServiceTypeChange(value)}
                 >
-                  <Text style={[styles.bookingTimeSlotText, active && styles.bookingTimeSlotTextActive]}>
-                    {slot}
+                  <Text style={[styles.bookingTypeChipText, bookingForm.serviceType === value && styles.bookingTypeChipTextActive]}>
+                    {label}
                   </Text>
                 </TouchableOpacity>
-              );
+              ))}
+            </View>
+            {renderBookingSelectField({
+              label: bookingForm.serviceType === 'hospital' ? '选择已有医院' : '选择门店',
+              value: selectedLocationLabel,
+              placeholder: bookingForm.serviceType === 'hospital' ? '请选择医院' : '请选择门店',
+              onPress: () => setActiveBookingPicker('location'),
+              helperText:
+                bookingForm.serviceType === 'hospital'
+                  ? providerLoading
+                    ? '正在加载已有医院...'
+                    : providerOptions.length
+                      ? '已接入系统中的医院库，可直接选择已有医院。'
+                      : '当前暂无可复用医院，先展示默认医院选项。'
+                  : undefined,
             })}
+            <View style={styles.bookingDateRow}>
+              <View style={styles.bookingDateInput}>
+                <DatePickerField
+                  value={bookingForm.bookingDate}
+                  onChange={(bookingDate) => setBookingForm((prev) => ({ ...prev, bookingDate }))}
+                  placeholder="请选择预约日期"
+                  title="选择预约日期"
+                />
+              </View>
+            </View>
+            <Text style={styles.bookingSectionLabel}>选择时间段</Text>
+            <View style={styles.bookingTimeSlotRow}>
+              {(selectedLocation?.timeSlots || []).map((slot) => {
+                const active = bookingForm.bookingTime === slot;
+                return (
+                  <TouchableOpacity
+                    key={slot}
+                    style={[styles.bookingTimeSlot, active && styles.bookingTimeSlotActive]}
+                    onPress={() => setBookingForm((prev) => ({ ...prev, bookingTime: slot }))}
+                  >
+                    <Text style={[styles.bookingTimeSlotText, active && styles.bookingTimeSlotTextActive]}>
+                      {slot}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TextInput
+              style={styles.contentInput}
+              value={bookingForm.notes}
+              onChangeText={(notes) => setBookingForm((prev) => ({ ...prev, notes }))}
+              placeholder="补充预约说明，例如疫苗复查、体检咨询、洗护需求等"
+              multiline
+              numberOfLines={4}
+            />
+            <View style={styles.composerActions}>
+              <TouchableOpacity
+                style={[styles.secondaryButton, submitting && styles.disabledButton]}
+                disabled={submitting}
+                onPress={resetComposer}
+              >
+                <Text style={styles.secondaryButtonText}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryButton, submitting && styles.disabledButton]}
+                disabled={submitting}
+                onPress={handleCreateBooking}
+              >
+                <Text style={styles.primaryButtonText}>{submitting ? '提交中...' : '创建预约'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <TextInput
-            style={styles.contentInput}
-            value={bookingForm.notes}
-            onChangeText={(notes) => setBookingForm((prev) => ({ ...prev, notes }))}
-            placeholder="补充预约说明，例如疫苗复查、体检咨询、洗护需求等"
-            multiline
-            numberOfLines={4}
-          />
-          <View style={styles.composerActions}>
-            <TouchableOpacity
-              style={[styles.secondaryButton, submitting && styles.disabledButton]}
-              disabled={submitting}
-              onPress={resetComposer}
-            >
-              <Text style={styles.secondaryButtonText}>取消</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.primaryButton, submitting && styles.disabledButton]}
-              disabled={submitting}
-              onPress={handleCreateBooking}
-            >
-              <Text style={styles.primaryButtonText}>{submitting ? '提交中...' : '创建预约'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : null}
+        ) : null}
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
         {loading ? (
           <View style={styles.loadingState}>
             <ActivityIndicator size="large" color="#4CAF50" />
@@ -784,6 +806,57 @@ const CommunityScreen = ({ navigation }: any) => {
           visibleList.map((post) => renderPostCard(post, activeTab === 'mine'))
         )}
       </ScrollView>
+
+      <Modal
+        visible={activeBookingPicker !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveBookingPicker(null)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setActiveBookingPicker(null)}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.dropdownModalCard}>
+            <Text style={styles.dropdownModalTitle}>
+              {bookingForm.serviceType === 'hospital' ? '选择医院' : '选择门店'}
+            </Text>
+            <ScrollView style={styles.dropdownModalList} showsVerticalScrollIndicator={false}>
+              {selectedServiceOption.locations.map((item) => {
+                const active =
+                  bookingForm.serviceName === item.name &&
+                  bookingForm.serviceAddress === item.address;
+                return (
+                  <TouchableOpacity
+                    key={`${item.name}-${item.address}`}
+                    style={[styles.dropdownOption, active && styles.dropdownOptionActive]}
+                    onPress={() => {
+                      handleBookingLocationSelect(item.name, item.address);
+                      setActiveBookingPicker(null);
+                    }}
+                  >
+                    <Text style={[styles.dropdownOptionTitle, active && styles.dropdownOptionTitleActive]}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.dropdownOptionMeta}>{item.address}</Text>
+                    {item.doctor ? (
+                      <Text style={styles.dropdownOptionMeta}>医生：{item.doctor}</Text>
+                    ) : null}
+                    <Text style={styles.dropdownOptionMeta}>{item.description}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.dropdownModalCancel}
+              onPress={() => setActiveBookingPicker(null)}
+            >
+              <Text style={styles.dropdownModalCancelText}>关闭</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -843,9 +916,8 @@ const styles = StyleSheet.create({
   },
   composerCard: {
     backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginTop: 16,
     padding: 16,
+    marginBottom: 16,
     borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -902,50 +974,48 @@ const styles = StyleSheet.create({
     color: '#42544a',
     marginBottom: 10,
   },
+  bookingSelectGroup: {
+    marginBottom: 14,
+  },
+  bookingSelectField: {
+    minHeight: 52,
+    borderRadius: 12,
+    backgroundColor: '#f5f7f6',
+    borderWidth: 1,
+    borderColor: '#dce7df',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  bookingSelectFieldDisabled: {
+    opacity: 0.55,
+  },
+  bookingSelectValue: {
+    flex: 1,
+    color: '#243029',
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  bookingSelectPlaceholder: {
+    color: '#88958f',
+    fontWeight: '500',
+  },
+  bookingSelectArrow: {
+    color: '#607067',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  bookingSelectDisabledText: {
+    color: '#98a59f',
+  },
   bookingHelperText: {
     fontSize: 12,
     color: '#728078',
     marginBottom: 12,
-    lineHeight: 18,
-  },
-  bookingLocationList: {
-    gap: 10,
-    marginBottom: 14,
-  },
-  bookingLocationCard: {
-    borderWidth: 1,
-    borderColor: '#dce7df',
-    borderRadius: 14,
-    padding: 14,
-    backgroundColor: '#f9fbfa',
-  },
-  bookingLocationCardActive: {
-    borderColor: '#4CAF50',
-    backgroundColor: '#eef9f0',
-  },
-  bookingLocationName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#243029',
-  },
-  bookingLocationNameActive: {
-    color: '#2c8b42',
-  },
-  bookingLocationAddress: {
-    fontSize: 12,
-    color: '#607067',
-    marginTop: 6,
-  },
-  bookingLocationMeta: {
-    fontSize: 12,
-    color: '#49685a',
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  bookingLocationDescription: {
-    fontSize: 12,
-    color: '#728078',
-    marginTop: 4,
     lineHeight: 18,
   },
   bookingTimeSlotRow: {
@@ -1148,6 +1218,65 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: '#809087',
     fontSize: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 24, 20, 0.42)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  dropdownModalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 18,
+    maxHeight: '72%',
+  },
+  dropdownModalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#243029',
+    marginBottom: 14,
+  },
+  dropdownModalList: {
+    maxHeight: 360,
+  },
+  dropdownOption: {
+    borderWidth: 1,
+    borderColor: '#e2ebe5',
+    backgroundColor: '#f9fbfa',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+  },
+  dropdownOptionActive: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#eef9f0',
+  },
+  dropdownOptionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#243029',
+  },
+  dropdownOptionTitleActive: {
+    color: '#2c8b42',
+  },
+  dropdownOptionMeta: {
+    fontSize: 12,
+    color: '#66776e',
+    marginTop: 5,
+    lineHeight: 18,
+  },
+  dropdownModalCancel: {
+    marginTop: 6,
+    alignSelf: 'flex-end',
+    backgroundColor: '#eef2ef',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  dropdownModalCancelText: {
+    color: '#4f5d55',
+    fontWeight: '700',
   },
   bookingCard: {
     backgroundColor: '#fff',
