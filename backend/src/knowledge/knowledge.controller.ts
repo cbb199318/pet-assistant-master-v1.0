@@ -57,6 +57,7 @@ export class KnowledgeController {
     is_recommended?: boolean;
     sort_order?: number;
     recommendation_reason?: string;
+    linked_product_id?: number;
   }): Promise<Article> {
     return this.knowledgeService.createArticle(articleData);
   }
@@ -98,6 +99,7 @@ export class KnowledgeController {
     is_recommended?: boolean;
     sort_order?: number;
     recommendation_reason?: string;
+    linked_product_id?: number | null;
   }): Promise<Article> {
     return this.knowledgeService.updateArticle(id, articleData);
   }

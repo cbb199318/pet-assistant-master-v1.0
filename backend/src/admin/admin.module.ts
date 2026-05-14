@@ -22,6 +22,13 @@ import { Comment } from '../community/comment.entity';
 import { Booking } from '../community/booking.entity';
 import { Article } from '../knowledge/article.entity';
 import { Category } from '../knowledge/category.entity';
+import { Merchant } from '../shop/merchant.entity';
+import { Product } from '../shop/product.entity';
+import { ProductSku } from '../shop/product-sku.entity';
+import { UserAddress } from '../shop/user-address.entity';
+import { ShopOrder } from '../shop/order.entity';
+import { OrderItem } from '../shop/order-item.entity';
+import { ShopModule } from '../shop/shop.module';
 
 dotenv.config();
 
@@ -42,7 +49,14 @@ dotenv.config();
       Booking,
       Article,
       Category,
+      Merchant,
+      Product,
+      ProductSku,
+      UserAddress,
+      ShopOrder,
+      OrderItem,
     ]),
+    ShopModule,
     PassportModule,
     JwtModule.register({
       secret: process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET || 'your-secret-key',

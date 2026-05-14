@@ -13,15 +13,22 @@ import { Comment } from '../community/comment.entity';
 import { Booking } from '../community/booking.entity';
 import { Article } from '../knowledge/article.entity';
 import { Category } from '../knowledge/category.entity';
+import { ShopOrder } from '../shop/order.entity';
+import { OrderItem } from '../shop/order-item.entity';
+import { UserAddress } from '../shop/user-address.entity';
 import { AdminAuditLog } from './admin-audit-log.entity';
 import { AdminUser } from './admin-user.entity';
 import { AdminPermission, AdminRole, getAdminPermissions, getRoleLabel, hasAdminPermission, isAdminRole } from './admin-permissions';
 import { SystemSetting } from './system-setting.entity';
+import { ShopService } from '../shop/shop.service';
 
 type AdminActor = {
   adminId: number;
   username: string;
   role: string;
+  account_type?: string;
+  merchant_id?: number | null;
+  merchant_name?: string | null;
 };
 
 type TrendDailyPoint = {
@@ -89,10 +96,17 @@ export class AdminService {
     private articleRepository: Repository<Article>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    @InjectRepository(ShopOrder)
+    private orderRepository: Repository<ShopOrder>,
+    @InjectRepository(OrderItem)
+    private orderItemRepository: Repository<OrderItem>,
+    @InjectRepository(UserAddress)
+    private userAddressRepository: Repository<UserAddress>,
     @InjectRepository(AdminAuditLog)
     private adminAuditLogRepository: Repository<AdminAuditLog>,
     @InjectRepository(SystemSetting)
     private systemSettingRepository: Repository<SystemSetting>,
+    private shopService: ShopService,
     private dataSource: DataSource,
   ) {}
 
@@ -126,6 +140,9 @@ export class AdminService {
       role_label: getRoleLabel(adminUser.role),
       permissions: getAdminPermissions(adminUser.role),
       status: adminUser.status,
+      account_type: adminUser.account_type || 'platform',
+      merchant_id: adminUser.merchant_id ?? null,
+      merchant_name: adminUser.merchant?.name || null,
       last_login_at: adminUser.last_login_at,
       created_at: adminUser.created_at,
       updated_at: adminUser.updated_at,
@@ -308,7 +325,9 @@ export class AdminService {
   ) {
     this.assertPermission(actor, 'admin_users:view');
     const { page, pageSize, skip } = this.buildPaging(params);
-    const queryBuilder = this.adminUserRepository.createQueryBuilder('admin_user');
+    const queryBuilder = this.adminUserRepository
+      .createQueryBuilder('admin_user')
+      .leftJoinAndSelect('admin_user.merchant', 'merchant');
 
     if (params.keyword?.trim()) {
       const keyword = `%${params.keyword.trim()}%`;
@@ -354,6 +373,8 @@ export class AdminService {
         password: await bcrypt.hash(password, 10),
         role,
         status: 'active',
+        account_type: 'platform',
+        merchant_id: null,
       }),
     );
 
@@ -610,6 +631,16 @@ export class AdminService {
       }
 
       await manager.delete(Comment, { user_id: id });
+      const userOrders = await manager.find(ShopOrder, {
+        where: { user_id: id },
+        select: ['id'],
+      });
+      const orderIds = userOrders.map((order) => order.id);
+      if (orderIds.length > 0) {
+        await manager.delete(OrderItem, { order_id: In(orderIds) });
+        await manager.delete(ShopOrder, { id: In(orderIds) });
+      }
+      await manager.delete(UserAddress, { user_id: id });
       await manager
         .createQueryBuilder()
         .delete()
@@ -942,7 +973,8 @@ export class AdminService {
     const { page, pageSize, skip } = this.buildPaging(params);
     const queryBuilder = this.articleRepository
       .createQueryBuilder('article')
-      .leftJoinAndSelect('article.category', 'category');
+      .leftJoinAndSelect('article.category', 'category')
+      .leftJoinAndSelect('article.linked_product', 'linked_product');
 
     if (params.keyword?.trim()) {
       const keyword = `%${params.keyword.trim()}%`;
@@ -975,6 +1007,13 @@ export class AdminService {
         is_recommended: article.is_recommended,
         sort_order: article.sort_order,
         recommendation_reason: article.recommendation_reason,
+        linked_product_id: article.linked_product_id,
+        linked_product: article.linked_product
+          ? {
+              id: article.linked_product.id,
+              name: article.linked_product.name,
+            }
+          : null,
         created_at: article.created_at,
         category: article.category
           ? {
@@ -993,7 +1032,7 @@ export class AdminService {
     this.assertPermission(actor, 'articles:view');
     const article = await this.articleRepository.findOne({
       where: { id },
-      relations: ['category'],
+      relations: ['category', 'linked_product'],
     });
     if (!article) {
       throw new NotFoundException('文章不存在');
@@ -1012,6 +1051,13 @@ export class AdminService {
       is_recommended: article.is_recommended,
       sort_order: article.sort_order,
       recommendation_reason: article.recommendation_reason,
+      linked_product_id: article.linked_product_id,
+      linked_product: article.linked_product
+        ? {
+            id: article.linked_product.id,
+            name: article.linked_product.name,
+          }
+        : null,
       created_at: article.created_at,
       updated_at: article.updated_at,
       category: article.category
@@ -1035,6 +1081,7 @@ export class AdminService {
       is_recommended?: boolean;
       sort_order?: number;
       recommendation_reason?: string;
+      linked_product_id?: number | null;
     },
     actor: AdminActor,
   ) {
@@ -1056,6 +1103,7 @@ export class AdminService {
       is_recommended: Boolean(data.is_recommended),
       sort_order: Number(data.sort_order) || 0,
       recommendation_reason: data.recommendation_reason || null,
+      linked_product_id: data.linked_product_id || null,
     });
 
     const saved = await this.articleRepository.save(article);
@@ -1075,13 +1123,14 @@ export class AdminService {
       is_recommended?: boolean;
       sort_order?: number;
       recommendation_reason?: string;
+      linked_product_id?: number | null;
     },
     actor: AdminActor,
   ) {
     this.assertPermission(actor, 'articles:update');
     const article = await this.articleRepository.findOne({
       where: { id },
-      relations: ['category'],
+      relations: ['category', 'linked_product'],
     });
     if (!article) {
       throw new NotFoundException('文章不存在');
@@ -1107,6 +1156,9 @@ export class AdminService {
     if (data.recommendation_reason !== undefined) {
       article.recommendation_reason = data.recommendation_reason || null;
     }
+    if (data.linked_product_id !== undefined) {
+      article.linked_product_id = data.linked_product_id || null;
+    }
 
     const saved = await this.articleRepository.save(article);
     await this.logAdminAction(actor, 'update_article', 'article', id, saved.title);
@@ -1123,6 +1175,97 @@ export class AdminService {
     await this.articleRepository.delete(id);
     await this.logAdminAction(actor, 'delete_article', 'article', id, article.title);
     return { message: '文章删除成功' };
+  }
+
+  async getOrders(
+    params: { keyword?: string; page: number; pageSize: number },
+    actor: AdminActor,
+  ) {
+    this.assertPermission(actor, 'orders:view');
+    return this.shopService.getAdminOrders(params, actor);
+  }
+
+  async getOrderById(id: number, actor: AdminActor) {
+    this.assertPermission(actor, 'orders:view');
+    return this.shopService.getAdminOrderById(id, actor);
+  }
+
+  async updateOrderStatus(id: number, status: string, actor: AdminActor) {
+    this.assertPermission(actor, 'orders:update_status');
+    const result = await this.shopService.updateAdminOrderStatus(id, status, actor);
+    await this.logAdminAction(actor, 'update_order_status', 'order', id, `订单状态更新为 ${status}`);
+    return result;
+  }
+
+  async getProducts(
+    params: { keyword?: string; page: number; pageSize: number },
+    actor: AdminActor,
+  ) {
+    this.assertPermission(actor, 'products:view');
+    return this.shopService.getAdminProducts(params, actor);
+  }
+
+  async getProductById(id: number, actor: AdminActor) {
+    this.assertPermission(actor, 'products:view');
+    return this.shopService.getAdminProductById(id, actor);
+  }
+
+  async createProduct(
+    data: {
+      merchant_id?: number | null;
+      name: string;
+      cover_image?: string;
+      description?: string;
+      status?: string;
+      sort_order?: number;
+      is_recommended?: boolean;
+      skus: Array<{
+        spec_name: string;
+        spec_value: string;
+        price: number;
+        stock: number;
+        status?: string;
+      }>;
+    },
+    actor: AdminActor,
+  ) {
+    this.assertPermission(actor, 'products:create');
+    const product = await this.shopService.createAdminProduct(data, actor);
+    await this.logAdminAction(actor, 'create_product', 'product', product.id, product.name);
+    return product;
+  }
+
+  async updateProduct(
+    id: number,
+    data: {
+      name?: string;
+      cover_image?: string;
+      description?: string;
+      status?: string;
+      sort_order?: number;
+      is_recommended?: boolean;
+      skus?: Array<{
+        id?: number;
+        spec_name: string;
+        spec_value: string;
+        price: number;
+        stock: number;
+        status?: string;
+      }>;
+    },
+    actor: AdminActor,
+  ) {
+    this.assertPermission(actor, 'products:update');
+    const product = await this.shopService.updateAdminProduct(id, data, actor);
+    await this.logAdminAction(actor, 'update_product', 'product', id, product.name);
+    return product;
+  }
+
+  async deleteProduct(id: number, actor: AdminActor) {
+    this.assertPermission(actor, 'products:delete');
+    const result = await this.shopService.deleteAdminProduct(id, actor);
+    await this.logAdminAction(actor, 'delete_product', 'product', id, `删除商品 ${id}`);
+    return result;
   }
 
   async getSystemSettings(actor: AdminActor) {

@@ -13,6 +13,13 @@ import { Comment } from '../community/comment.entity';
 import { Booking } from '../community/booking.entity';
 import { Category } from '../knowledge/category.entity';
 import { Article } from '../knowledge/article.entity';
+import { Merchant } from '../shop/merchant.entity';
+import { Product } from '../shop/product.entity';
+import { ProductSku } from '../shop/product-sku.entity';
+import { UserAddress } from '../shop/user-address.entity';
+import { ShopOrder } from '../shop/order.entity';
+import { OrderItem } from '../shop/order-item.entity';
+import { AdminUser } from '../admin/admin-user.entity';
 
 const DEMO_USER = {
   phone: '13900009999',
@@ -65,6 +72,19 @@ const DEMO_ARTICLE_IMAGES = {
   board: '/uploads/demo/real-final/product-reminder-board.jpg',
 };
 
+const DEMO_MERCHANTS = [
+  {
+    name: '宠物生活馆',
+    contact_name: '陈店长',
+    contact_phone: '13800001111',
+  },
+  {
+    name: '健康护理实验室',
+    contact_name: '林顾问',
+    contact_phone: '13800002222',
+  },
+];
+
 const DEMO_BOOKINGS = [
   {
     serviceType: 'hospital',
@@ -114,6 +134,13 @@ export class DemoSeedService implements OnModuleInit {
     @InjectRepository(Booking) private readonly bookingRepository: Repository<Booking>,
     @InjectRepository(Category) private readonly categoryRepository: Repository<Category>,
     @InjectRepository(Article) private readonly articleRepository: Repository<Article>,
+    @InjectRepository(Merchant) private readonly merchantRepository: Repository<Merchant>,
+    @InjectRepository(Product) private readonly productRepository: Repository<Product>,
+    @InjectRepository(ProductSku) private readonly productSkuRepository: Repository<ProductSku>,
+    @InjectRepository(UserAddress) private readonly userAddressRepository: Repository<UserAddress>,
+    @InjectRepository(ShopOrder) private readonly orderRepository: Repository<ShopOrder>,
+    @InjectRepository(OrderItem) private readonly orderItemRepository: Repository<OrderItem>,
+    @InjectRepository(AdminUser) private readonly adminUserRepository: Repository<AdminUser>,
   ) {}
 
   async onModuleInit() {
@@ -147,7 +174,9 @@ export class DemoSeedService implements OnModuleInit {
     await this.ensureHealthRecords(pets);
     await this.ensureCarePlans(pets);
     await this.ensureCommunityContent(demoUser);
-    await this.ensureKnowledgeContent();
+    const commerceData = await this.ensureCommerceData(demoUser);
+    await this.ensureKnowledgeContent(commerceData.productsByKey);
+    await this.ensureMerchantAdminAccounts(commerceData.merchantsByName);
 
     this.logger.log(`demo seed ready for ${DEMO_USER.phone}`);
   }
@@ -370,7 +399,102 @@ export class DemoSeedService implements OnModuleInit {
     }
   }
 
-  private async ensureKnowledgeContent() {
+  private async ensureCommerceData(user: User) {
+    const merchantsByName = new Map<string, Merchant>();
+    for (const item of DEMO_MERCHANTS) {
+      let merchant = await this.merchantRepository.findOne({
+        where: { name: item.name },
+      });
+
+      if (!merchant) {
+        merchant = this.merchantRepository.create({
+          name: item.name,
+          contact_name: item.contact_name,
+          contact_phone: item.contact_phone,
+          status: 'active',
+        });
+      } else {
+        merchant.contact_name = item.contact_name;
+        merchant.contact_phone = item.contact_phone;
+        merchant.status = 'active';
+      }
+
+      merchant = await this.merchantRepository.save(merchant);
+      merchantsByName.set(merchant.name, merchant);
+    }
+
+    const productsByKey = new Map<string, Product>();
+    const bowl = await this.ensureProduct({
+      merchant: merchantsByName.get('宠物生活馆')!,
+      name: '便携折叠水碗',
+      cover_image: DEMO_ARTICLE_IMAGES.bowl,
+      description: '外出遛狗和长时等待时更方便补水，适合狗狗和猫咪共用。',
+      is_recommended: true,
+      sort_order: 95,
+      skus: [
+        { spec_name: '颜色', spec_value: '森林绿', price: 29.9, stock: 30 },
+        { spec_name: '颜色', spec_value: '奶油白', price: 29.9, stock: 24 },
+      ],
+    });
+    productsByKey.set('bowl', bowl);
+
+    const folder = await this.ensureProduct({
+      merchant: merchantsByName.get('健康护理实验室')!,
+      name: '分装药盒与疫苗凭证夹',
+      cover_image: DEMO_ARTICLE_IMAGES.folder,
+      description: '把驱虫药、疫苗凭证和医院单据收在同一套工具里，方便长期管理。',
+      is_recommended: true,
+      sort_order: 85,
+      skus: [
+        { spec_name: '规格', spec_value: '基础版', price: 39.9, stock: 18 },
+        { spec_name: '规格', spec_value: '加厚版', price: 49.9, stock: 12 },
+      ],
+    });
+    productsByKey.set('folder', folder);
+
+    const board = await this.ensureProduct({
+      merchant: merchantsByName.get('宠物生活馆')!,
+      name: '每日喂食量磁吸提醒板',
+      cover_image: DEMO_ARTICLE_IMAGES.board,
+      description: '适合多人协作照顾宠物，减少重复喂食和执行遗漏。',
+      is_recommended: true,
+      sort_order: 75,
+      skus: [
+        { spec_name: '尺寸', spec_value: '标准版', price: 45.0, stock: 20 },
+      ],
+    });
+    productsByKey.set('board', board);
+
+    const address = await this.ensureUserAddress({
+      user_id: user.id,
+      receiver_name: '答辩演示用户',
+      receiver_phone: '13900009999',
+      receiver_address: '上海市徐汇区演示路 66 号 801 室',
+      is_default: true,
+    });
+
+    await this.ensureOrder({
+      user,
+      merchant: bowl.merchant,
+      address,
+      status: 'processing',
+      remark: '用于展示商家后台订单处理链路。',
+      items: [
+        {
+          product: bowl,
+          sku: (bowl.skus || [])[0],
+          quantity: 1,
+        },
+      ],
+    });
+
+    return {
+      merchantsByName,
+      productsByKey,
+    };
+  }
+
+  private async ensureKnowledgeContent(productsByKey: Map<string, Product>) {
     const categoryMap = new Map<string, Category>();
     for (const categoryData of DEMO_CATEGORIES) {
       let category = await this.categoryRepository.findOne({
@@ -450,6 +574,7 @@ export class DemoSeedService implements OnModuleInit {
       is_recommended: true,
       sort_order: 95,
       recommendation_reason: '适合搭配遛狗和外出场景讲解。',
+      linked_product_id: productsByKey.get('bowl')?.id ?? null,
     });
 
     await this.ensureArticle({
@@ -463,6 +588,7 @@ export class DemoSeedService implements OnModuleInit {
       is_recommended: true,
       sort_order: 85,
       recommendation_reason: '适合衔接医院和医生信息管理。',
+      linked_product_id: productsByKey.get('folder')?.id ?? null,
     });
 
     await this.ensureArticle({
@@ -476,6 +602,7 @@ export class DemoSeedService implements OnModuleInit {
       is_recommended: true,
       sort_order: 75,
       recommendation_reason: '适合讲解计划执行与线下配合。',
+      linked_product_id: productsByKey.get('board')?.id ?? null,
     });
   }
 
@@ -742,6 +869,7 @@ export class DemoSeedService implements OnModuleInit {
     sort_order: number;
     recommendation_reason: string | null;
     category: Category;
+    linked_product_id?: number | null;
   }) {
     let article = await this.articleRepository.findOne({
       where: { title: input.title },
@@ -759,6 +887,7 @@ export class DemoSeedService implements OnModuleInit {
         sort_order: input.sort_order,
         recommendation_reason: input.recommendation_reason,
         category: input.category,
+        linked_product_id: input.linked_product_id ?? null,
       });
     } else {
       article.content = input.content;
@@ -769,9 +898,248 @@ export class DemoSeedService implements OnModuleInit {
       article.sort_order = input.sort_order;
       article.recommendation_reason = input.recommendation_reason;
       article.category = input.category;
+      article.linked_product_id = input.linked_product_id ?? null;
     }
 
     return this.articleRepository.save(article);
+  }
+
+  private async ensureProduct(input: {
+    merchant: Merchant;
+    name: string;
+    cover_image: string;
+    description: string;
+    is_recommended: boolean;
+    sort_order: number;
+    skus: Array<{
+      spec_name: string;
+      spec_value: string;
+      price: number;
+      stock: number;
+    }>;
+  }) {
+    let product = await this.productRepository.findOne({
+      where: {
+        merchant_id: input.merchant.id,
+        name: input.name,
+      },
+      relations: ['merchant', 'skus'],
+    });
+
+    if (!product) {
+      product = this.productRepository.create({
+        merchant: input.merchant,
+        merchant_id: input.merchant.id,
+        name: input.name,
+        cover_image: input.cover_image,
+        description: input.description,
+        status: 'active',
+        is_recommended: input.is_recommended,
+        sort_order: input.sort_order,
+        price_range: '0.00',
+        stock: 0,
+      });
+    } else {
+      product.cover_image = input.cover_image;
+      product.description = input.description;
+      product.status = 'active';
+      product.is_recommended = input.is_recommended;
+      product.sort_order = input.sort_order;
+    }
+
+    product = await this.productRepository.save(product);
+
+    let totalStock = 0;
+    const prices: number[] = [];
+    const skus: ProductSku[] = [];
+
+    for (const skuInput of input.skus) {
+      let sku = await this.productSkuRepository.findOne({
+        where: {
+          product_id: product.id,
+          spec_name: skuInput.spec_name,
+          spec_value: skuInput.spec_value,
+        },
+      });
+
+      if (!sku) {
+        sku = this.productSkuRepository.create({
+          product,
+          product_id: product.id,
+          spec_name: skuInput.spec_name,
+          spec_value: skuInput.spec_value,
+          price: skuInput.price,
+          stock: skuInput.stock,
+          status: 'active',
+        });
+      } else {
+        sku.price = skuInput.price;
+        sku.stock = skuInput.stock;
+        sku.status = 'active';
+      }
+
+      sku = await this.productSkuRepository.save(sku);
+      totalStock += sku.stock;
+      prices.push(sku.price);
+      skus.push(sku);
+    }
+
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    product.stock = totalStock;
+    product.price_range = min === max ? min.toFixed(2) : `${min.toFixed(2)} - ${max.toFixed(2)}`;
+    product = await this.productRepository.save(product);
+    product.skus = skus;
+
+    return product;
+  }
+
+  private async ensureUserAddress(input: {
+    user_id: number;
+    receiver_name: string;
+    receiver_phone: string;
+    receiver_address: string;
+    is_default: boolean;
+  }) {
+    let address = await this.userAddressRepository.findOne({
+      where: {
+        user_id: input.user_id,
+        receiver_phone: input.receiver_phone,
+        receiver_address: input.receiver_address,
+      },
+    });
+
+    if (!address) {
+      address = this.userAddressRepository.create(input);
+    } else {
+      address.receiver_name = input.receiver_name;
+      address.receiver_phone = input.receiver_phone;
+      address.receiver_address = input.receiver_address;
+      address.is_default = input.is_default;
+    }
+
+    if (input.is_default) {
+      await this.userAddressRepository.update({ user_id: input.user_id }, { is_default: false });
+      address.is_default = true;
+    }
+
+    return this.userAddressRepository.save(address);
+  }
+
+  private async ensureOrder(input: {
+    user: User;
+    merchant: Merchant;
+    address: UserAddress;
+    status: string;
+    remark?: string;
+    items: Array<{
+      product: Product;
+      sku: ProductSku;
+      quantity: number;
+    }>;
+  }) {
+    const orderNo = `DEMO-${input.user.id}-${input.merchant.id}`;
+    let order = await this.orderRepository.findOne({
+      where: { order_no: orderNo },
+      relations: ['items'],
+    });
+
+    const totalAmount = Number(
+      input.items
+        .reduce((sum, item) => sum + item.sku.price * item.quantity, 0)
+        .toFixed(2),
+    );
+
+    if (!order) {
+      order = this.orderRepository.create({
+        order_no: orderNo,
+        user: input.user,
+        user_id: input.user.id,
+        merchant: input.merchant,
+        merchant_id: input.merchant.id,
+        status: input.status,
+        total_amount: totalAmount,
+        receiver_name: input.address.receiver_name,
+        receiver_phone: input.address.receiver_phone,
+        receiver_address: input.address.receiver_address,
+        remark: input.remark || null,
+      });
+      order = await this.orderRepository.save(order);
+    } else {
+      order.status = input.status;
+      order.total_amount = totalAmount;
+      order.receiver_name = input.address.receiver_name;
+      order.receiver_phone = input.address.receiver_phone;
+      order.receiver_address = input.address.receiver_address;
+      order.remark = input.remark || null;
+      order = await this.orderRepository.save(order);
+      await this.orderItemRepository.delete({ order_id: order.id });
+    }
+
+    for (const item of input.items) {
+      await this.orderItemRepository.save(
+        this.orderItemRepository.create({
+          order,
+          order_id: order.id,
+          product: item.product,
+          product_id: item.product.id,
+          sku: item.sku,
+          sku_id: item.sku.id,
+          product_name_snapshot: item.product.name,
+          sku_snapshot: `${item.sku.spec_name}: ${item.sku.spec_value}`,
+          price: item.sku.price,
+          quantity: item.quantity,
+          amount: Number((item.sku.price * item.quantity).toFixed(2)),
+        }),
+      );
+    }
+
+    return order;
+  }
+
+  private async ensureMerchantAdminAccounts(merchantsByName: Map<string, Merchant>) {
+    await this.ensureMerchantAdmin({
+      username: 'merchant_demo_1',
+      password: 'merchant123456',
+      merchant: merchantsByName.get('宠物生活馆')!,
+    });
+    await this.ensureMerchantAdmin({
+      username: 'merchant_demo_2',
+      password: 'merchant123456',
+      merchant: merchantsByName.get('健康护理实验室')!,
+    });
+  }
+
+  private async ensureMerchantAdmin(input: {
+    username: string;
+    password: string;
+    merchant: Merchant;
+  }) {
+    const hashedPassword = await bcrypt.hash(input.password, 10);
+    let adminUser = await this.adminUserRepository.findOne({
+      where: { username: input.username },
+    });
+
+    if (!adminUser) {
+      adminUser = this.adminUserRepository.create({
+        username: input.username,
+        password: hashedPassword,
+        role: 'merchant_admin',
+        status: 'active',
+        account_type: 'merchant',
+        merchant_id: input.merchant.id,
+        merchant: input.merchant,
+      });
+    } else {
+      adminUser.password = hashedPassword;
+      adminUser.role = 'merchant_admin';
+      adminUser.status = 'active';
+      adminUser.account_type = 'merchant';
+      adminUser.merchant_id = input.merchant.id;
+      adminUser.merchant = input.merchant;
+    }
+
+    await this.adminUserRepository.save(adminUser);
   }
 
   private getDateOffset(days: number) {

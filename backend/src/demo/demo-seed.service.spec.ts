@@ -18,6 +18,13 @@ import { Comment } from '../community/comment.entity';
 import { Booking } from '../community/booking.entity';
 import { Category } from '../knowledge/category.entity';
 import { Article } from '../knowledge/article.entity';
+import { Merchant } from '../shop/merchant.entity';
+import { Product } from '../shop/product.entity';
+import { ProductSku } from '../shop/product-sku.entity';
+import { UserAddress } from '../shop/user-address.entity';
+import { ShopOrder } from '../shop/order.entity';
+import { OrderItem } from '../shop/order-item.entity';
+import { AdminUser } from '../admin/admin-user.entity';
 
 const sqljsLocation = join(tmpdir(), `pet-assistant-demo-seed-${Date.now()}.sqlite`);
 process.env.DB_TYPE = 'sqljs';
@@ -46,6 +53,13 @@ describe('DemoSeedService', () => {
   let bookingRepository: Repository<Booking>;
   let categoryRepository: Repository<Category>;
   let articleRepository: Repository<Article>;
+  let merchantRepository: Repository<Merchant>;
+  let productRepository: Repository<Product>;
+  let productSkuRepository: Repository<ProductSku>;
+  let userAddressRepository: Repository<UserAddress>;
+  let orderRepository: Repository<ShopOrder>;
+  let orderItemRepository: Repository<OrderItem>;
+  let adminUserRepository: Repository<AdminUser>;
 
   beforeAll(async () => {
     await fs.rm(sqljsLocation, { force: true }).catch(() => {});
@@ -69,6 +83,13 @@ describe('DemoSeedService', () => {
     bookingRepository = moduleFixture.get(getRepositoryToken(Booking));
     categoryRepository = moduleFixture.get(getRepositoryToken(Category));
     articleRepository = moduleFixture.get(getRepositoryToken(Article));
+    merchantRepository = moduleFixture.get(getRepositoryToken(Merchant));
+    productRepository = moduleFixture.get(getRepositoryToken(Product));
+    productSkuRepository = moduleFixture.get(getRepositoryToken(ProductSku));
+    userAddressRepository = moduleFixture.get(getRepositoryToken(UserAddress));
+    orderRepository = moduleFixture.get(getRepositoryToken(ShopOrder));
+    orderItemRepository = moduleFixture.get(getRepositoryToken(OrderItem));
+    adminUserRepository = moduleFixture.get(getRepositoryToken(AdminUser));
   });
 
   afterAll(async () => {
@@ -85,9 +106,16 @@ describe('DemoSeedService', () => {
     expect(await careRepository.count()).toBe(2);
     expect(await postRepository.count()).toBe(3);
     expect(await commentRepository.count()).toBe(3);
-    expect(await bookingRepository.count()).toBe(1);
+    expect(await bookingRepository.count()).toBe(3);
     expect(await categoryRepository.count()).toBe(3);
     expect(await articleRepository.count()).toBe(7);
+    expect(await merchantRepository.count()).toBe(2);
+    expect(await productRepository.count()).toBe(3);
+    expect(await productSkuRepository.count()).toBe(5);
+    expect(await userAddressRepository.count()).toBe(1);
+    expect(await orderRepository.count()).toBe(1);
+    expect(await orderItemRepository.count()).toBe(1);
+    expect(await adminUserRepository.count()).toBeGreaterThanOrEqual(4);
 
     const loginResponse = await request(app.getHttpServer())
       .post('/api/users/login')
@@ -98,7 +126,7 @@ describe('DemoSeedService', () => {
       .expect(201);
 
     expect(loginResponse.body.user.nickname).toBe('答辩演示用户');
-    expect(loginResponse.body.user.avatar).toBe('/uploads/demo/user-avatar.svg');
+    expect(loginResponse.body.user.avatar).toBe('/uploads/demo/user-avatar.png');
   });
 
   it('should remain idempotent when seed runs again', async () => {
@@ -112,8 +140,14 @@ describe('DemoSeedService', () => {
     expect(await careRepository.count()).toBe(2);
     expect(await postRepository.count()).toBe(3);
     expect(await commentRepository.count()).toBe(3);
-    expect(await bookingRepository.count()).toBe(1);
+    expect(await bookingRepository.count()).toBe(3);
     expect(await categoryRepository.count()).toBe(3);
     expect(await articleRepository.count()).toBe(7);
+    expect(await merchantRepository.count()).toBe(2);
+    expect(await productRepository.count()).toBe(3);
+    expect(await productSkuRepository.count()).toBe(5);
+    expect(await userAddressRepository.count()).toBe(1);
+    expect(await orderRepository.count()).toBe(1);
+    expect(await orderItemRepository.count()).toBe(1);
   });
 });

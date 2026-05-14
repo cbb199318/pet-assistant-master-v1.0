@@ -1,4 +1,4 @@
-export const ADMIN_ROLES = ['super_admin', 'content_admin', 'viewer_admin'] as const;
+export const ADMIN_ROLES = ['super_admin', 'content_admin', 'viewer_admin', 'merchant_admin'] as const;
 
 export type AdminRole = (typeof ADMIN_ROLES)[number];
 
@@ -20,6 +20,10 @@ export const ADMIN_PERMISSION_KEYS = [
   'articles:create',
   'articles:update',
   'articles:delete',
+  'products:view',
+  'products:create',
+  'products:update',
+  'products:delete',
   'settings:view',
   'settings:update',
   'audit_logs:view',
@@ -28,6 +32,8 @@ export const ADMIN_PERMISSION_KEYS = [
   'admin_users:update_role',
   'admin_users:update_status',
   'admin_users:reset_password',
+  'orders:view',
+  'orders:update_status',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSION_KEYS)[number];
@@ -48,6 +54,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     'articles:view',
     'articles:create',
     'articles:update',
+    'products:view',
     'audit_logs:view',
   ],
   viewer_admin: [
@@ -57,9 +64,18 @@ export const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     'comments:view',
     'categories:view',
     'articles:view',
+    'products:view',
     'settings:view',
     'audit_logs:view',
     'admin_users:view',
+  ],
+  merchant_admin: [
+    'products:view',
+    'products:create',
+    'products:update',
+    'products:delete',
+    'orders:view',
+    'orders:update_status',
   ],
 };
 
@@ -81,6 +97,9 @@ export function getRoleLabel(role: string) {
   }
   if (normalized === 'viewer_admin') {
     return '只读管理员';
+  }
+  if (normalized === 'merchant_admin') {
+    return '商家账号';
   }
   return '内容管理员';
 }

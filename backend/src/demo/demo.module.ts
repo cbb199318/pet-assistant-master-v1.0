@@ -12,6 +12,13 @@ import { Comment } from '../community/comment.entity';
 import { Booking } from '../community/booking.entity';
 import { Category } from '../knowledge/category.entity';
 import { Article } from '../knowledge/article.entity';
+import { Merchant } from '../shop/merchant.entity';
+import { Product } from '../shop/product.entity';
+import { ProductSku } from '../shop/product-sku.entity';
+import { UserAddress } from '../shop/user-address.entity';
+import { ShopOrder } from '../shop/order.entity';
+import { OrderItem } from '../shop/order-item.entity';
+import { AdminUser } from '../admin/admin-user.entity';
 
 @Module({
   imports: [
@@ -27,6 +34,13 @@ import { Article } from '../knowledge/article.entity';
       Booking,
       Category,
       Article,
+      Merchant,
+      Product,
+      ProductSku,
+      UserAddress,
+      ShopOrder,
+      OrderItem,
+      AdminUser,
     ]),
   ],
   providers: [DemoSeedService],

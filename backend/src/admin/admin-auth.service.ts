@@ -48,6 +48,9 @@ export class AdminAuthService implements OnModuleInit {
       role_label: getRoleLabel(adminUser.role),
       permissions: getAdminPermissions(adminUser.role),
       status: adminUser.status,
+      account_type: adminUser.account_type || 'platform',
+      merchant_id: adminUser.merchant_id ?? null,
+      merchant_name: adminUser.merchant?.name || null,
       last_login_at: adminUser.last_login_at,
       created_at: adminUser.created_at,
     };
@@ -58,6 +61,9 @@ export class AdminAuthService implements OnModuleInit {
       adminId: adminUser.id,
       username: adminUser.username,
       role: adminUser.role,
+      account_type: adminUser.account_type || 'platform',
+      merchant_id: adminUser.merchant_id ?? null,
+      merchant_name: adminUser.merchant?.name || null,
       type: 'admin',
     });
   }
@@ -90,6 +96,8 @@ export class AdminAuthService implements OnModuleInit {
         password: hashedPassword,
         role,
         status: 'active',
+        account_type: 'platform',
+        merchant_id: null,
       });
       await this.adminUserRepository.save(adminUser);
       return;
@@ -98,12 +106,14 @@ export class AdminAuthService implements OnModuleInit {
     existingAdmin.password = hashedPassword;
     existingAdmin.role = role;
     existingAdmin.status = 'active';
+    existingAdmin.account_type = existingAdmin.account_type || 'platform';
     await this.adminUserRepository.save(existingAdmin);
   }
 
   async login(username: string, password: string) {
     const adminUser = await this.adminUserRepository.findOne({
       where: { username },
+      relations: ['merchant'],
     });
 
     if (!adminUser) {
@@ -142,6 +152,7 @@ export class AdminAuthService implements OnModuleInit {
   async getProfile(adminId: number) {
     const adminUser = await this.adminUserRepository.findOne({
       where: { id: adminId },
+      relations: ['merchant'],
     });
 
     if (!adminUser) {

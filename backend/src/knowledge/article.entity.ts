@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Category } from './category.entity';
+import { Product } from '../shop/product.entity';
 
 @Entity('articles')
 export class Article {
@@ -38,6 +39,12 @@ export class Article {
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   recommendation_reason: string | null;
+
+  @ManyToOne(() => Product, { nullable: true })
+  linked_product: Product | null;
+
+  @Column({ type: 'int', nullable: true })
+  linked_product_id: number | null;
 
   @ManyToOne(() => Category, category => category.articles)
   category: Category;

@@ -82,6 +82,24 @@ const tabs = [
     group: 'content',
   },
   {
+    key: 'products',
+    label: '商品管理',
+    eyebrow: '商品管理',
+    title: '商品管理',
+    placeholder: '按商品名、描述、商家搜索',
+    permission: 'products:view',
+    group: 'commerce',
+  },
+  {
+    key: 'orders',
+    label: '订单管理',
+    eyebrow: '订单履约',
+    title: '订单管理',
+    placeholder: '按订单号、收货人、商家搜索',
+    permission: 'orders:view',
+    group: 'commerce',
+  },
+  {
     key: 'settings',
     label: '系统配置',
     eyebrow: '系统配置',
@@ -121,6 +139,12 @@ const sidebarGroups = [
     caption: '帖子、评论、分类、文章',
   },
   {
+    key: 'commerce',
+    label: '商城履约',
+    icon: 'OR',
+    caption: '订单查看与状态处理',
+  },
+  {
     key: 'system',
     label: '系统设置',
     icon: 'ST',
@@ -135,6 +159,8 @@ const listLoaders = {
   comments: adminApi.getComments,
   categories: adminApi.getCategories,
   articles: adminApi.getArticles,
+  products: adminApi.getProducts,
+  orders: adminApi.getOrders,
   settings: async () => {
     const items = await adminApi.getSystemSettings();
     return { items, total: items.length };
@@ -148,6 +174,8 @@ const detailLoaders = {
   comments: adminApi.getCommentDetail,
   categories: adminApi.getCategoryDetail,
   articles: adminApi.getArticleDetail,
+  products: adminApi.getProductDetail,
+  orders: adminApi.getOrderDetail,
 };
 
 const trendMetrics = [
@@ -166,6 +194,8 @@ const tabIcons = {
   comments: 'CM',
   categories: 'CT',
   articles: 'AR',
+  products: 'PD',
+  orders: 'OD',
   settings: 'ST',
   auditLogs: 'LG',
 };
@@ -227,7 +257,63 @@ const roleGuides = [
     title: '只读管理员',
     description: '用于演示或巡检，只能查看数据、列表和审计日志，不能修改业务数据。',
   },
+  {
+    role: 'merchant_admin',
+    title: '商家账号',
+    description: '共用同一后台登录入口，只能查看并处理自己商家的订单。',
+  },
 ];
+
+const ORDER_STATUS_LABELS = {
+  pending_confirmation: '待支付',
+  processing: '待发货',
+  shipped: '已发货',
+  completed: '已完成',
+  cancelled: '已取消',
+};
+
+function getDefaultAdminTab(adminProfile) {
+  const nextPermissions = adminProfile?.permissions || [];
+  if (nextPermissions.includes('dashboard:view')) {
+    return 'dashboard';
+  }
+  if (nextPermissions.includes('products:view')) {
+    return 'products';
+  }
+  if (nextPermissions.includes('orders:view')) {
+    return 'orders';
+  }
+  return tabs.find((item) => nextPermissions.includes(item.permission))?.key || 'dashboard';
+}
+
+function formatPrice(value) {
+  return `¥${Number(value || 0).toFixed(2)}`;
+}
+
+function parseSkuText(value) {
+  const lines = (value || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return lines.map((line) => {
+    const [spec_name = '', spec_value = '', price = '0', stock = '0'] = line.split('|').map((item) => item.trim());
+    return {
+      spec_name,
+      spec_value,
+      price: Number(price) || 0,
+      stock: Number(stock) || 0,
+      status: 'active',
+    };
+  });
+}
+
+function stringifySkus(skus = []) {
+  return skus
+    .filter((item) => item.status !== 'inactive')
+    .map((item) => [item.spec_name, item.spec_value, item.price, item.stock].join('|'))
+    .join('\n');
+}
 
 function LoginView({ loading, error, onSubmit }) {
   const [form, setForm] = useState({
@@ -468,6 +554,14 @@ function ArticleModal({
               placeholder="写给前台用户看的推荐理由"
             />
           </label>
+          <label>
+            <span>关联商品 ID</span>
+            <input
+              value={form.linked_product_id}
+              onChange={(event) => onChange('linked_product_id', event.target.value)}
+              placeholder="填写商品 ID 后，前台会优先跳商品详情"
+            />
+          </label>
           <label className="checkbox-field">
             <span>推荐位展示</span>
             <input
@@ -571,6 +665,119 @@ function AdminUserModal({
   );
 }
 
+function ProductModal({
+  loading,
+  visible,
+  mode,
+  form,
+  isMerchantAccount,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
+  if (!visible) {
+    return null;
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card modal-card-wide" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <div className="eyebrow">商品管理</div>
+            <h2>{mode === 'create' ? '新增商品' : '编辑商品'}</h2>
+          </div>
+          <button className="ghost-button" onClick={onClose}>
+            关闭
+          </button>
+        </div>
+
+        <div className="form-grid">
+          {!isMerchantAccount ? (
+            <label>
+              <span>商家 ID</span>
+              <input
+                value={form.merchant_id}
+                onChange={(event) => onChange('merchant_id', event.target.value)}
+                placeholder="平台账号创建商品时必填"
+              />
+            </label>
+          ) : null}
+          <label>
+            <span>商品名称</span>
+            <input
+              value={form.name}
+              onChange={(event) => onChange('name', event.target.value)}
+              placeholder="请输入商品名称"
+            />
+          </label>
+          <label>
+            <span>封面图地址</span>
+            <input
+              value={form.cover_image}
+              onChange={(event) => onChange('cover_image', event.target.value)}
+              placeholder="/uploads/product-cover.jpg"
+            />
+          </label>
+          <label>
+            <span>状态</span>
+            <select
+              value={form.status}
+              onChange={(event) => onChange('status', event.target.value)}
+            >
+              <option value="active">上架中</option>
+              <option value="inactive">已下架</option>
+            </select>
+          </label>
+          <label>
+            <span>推荐权重</span>
+            <input
+              value={form.sort_order}
+              onChange={(event) => onChange('sort_order', event.target.value)}
+              placeholder="0"
+            />
+          </label>
+          <label className="checkbox-field">
+            <span>推荐商品</span>
+            <input
+              type="checkbox"
+              checked={Boolean(form.is_recommended)}
+              onChange={(event) => onChange('is_recommended', event.target.checked)}
+            />
+          </label>
+          <label>
+            <span>商品描述</span>
+            <textarea
+              rows="6"
+              value={form.description}
+              onChange={(event) => onChange('description', event.target.value)}
+              placeholder="请输入商品描述"
+            />
+          </label>
+          <label>
+            <span>规格列表</span>
+            <textarea
+              rows="8"
+              value={form.sku_text}
+              onChange={(event) => onChange('sku_text', event.target.value)}
+              placeholder={'每行一条规格，格式：规格名|规格值|价格|库存\n例如：颜色|森林绿|29.9|20'}
+            />
+          </label>
+        </div>
+
+        <div className="modal-actions">
+          <button className="ghost-button" onClick={onClose} disabled={loading}>
+            取消
+          </button>
+          <button className="primary-button" onClick={onSubmit} disabled={loading}>
+            {loading ? '提交中...' : mode === 'create' ? '创建商品' : '保存商品'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [booting, setBooting] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
@@ -609,8 +816,22 @@ function App() {
     is_recommended: false,
     sort_order: '0',
     recommendation_reason: '',
+    linked_product_id: '',
   });
   const [categoryOptions, setCategoryOptions] = useState([]);
+  const [productModalVisible, setProductModalVisible] = useState(false);
+  const [productModalMode, setProductModalMode] = useState('create');
+  const [editingProductId, setEditingProductId] = useState(null);
+  const [productForm, setProductForm] = useState({
+    merchant_id: '',
+    name: '',
+    cover_image: '',
+    description: '',
+    status: 'active',
+    sort_order: '0',
+    is_recommended: false,
+    sku_text: '',
+  });
   const [adminUserModalVisible, setAdminUserModalVisible] = useState(false);
   const [adminUserForm, setAdminUserForm] = useState({
     username: '',
@@ -669,6 +890,7 @@ function App() {
     try {
       const response = await adminApi.profile();
       setAdmin(response.admin);
+      setActiveTab(getDefaultAdminTab(response.admin));
     } catch {
       setAdmin(null);
       setAdminToken('');
@@ -678,6 +900,9 @@ function App() {
   };
 
   const loadOverview = async () => {
+    if (!hasPermission('dashboard:view')) {
+      return;
+    }
     const [overviewData, trendData] = await Promise.all([
       adminApi.getOverview(),
       adminApi.getDashboardTrends(),
@@ -738,7 +963,11 @@ function App() {
       return;
     }
 
-    await Promise.all([loadOverview(), loadList(tab, nextPage, nextKeyword)]);
+    const tasks = [loadList(tab, nextPage, nextKeyword)];
+    if (hasPermission('dashboard:view')) {
+      tasks.unshift(loadOverview());
+    }
+    await Promise.all(tasks);
   };
 
   const loadDetail = async (tab, id) => {
@@ -816,6 +1045,7 @@ function App() {
       const response = await adminApi.login(form);
       setAdminToken(response.token);
       setAdmin(response.admin);
+      setActiveTab(getDefaultAdminTab(response.admin));
     } catch (error) {
       setAuthError(adminApi.getErrorMessage(error, '管理员登录失败'));
     } finally {
@@ -877,6 +1107,11 @@ function App() {
         message: '删除后无法恢复。',
         request: () => adminApi.deleteComment(item.id),
       },
+      products: {
+        label: `商品“${item.name || item.id}”`,
+        message: '删除后将同步移除该商品的规格。',
+        request: () => adminApi.deleteProduct(item.id),
+      },
       categories: {
         label: `分类“${item.name || item.id}”`,
         message: '如果分类下仍有文章，后端会阻止删除。',
@@ -926,6 +1161,8 @@ function App() {
         await adminApi.updatePostStatus(item.id, status);
       } else if (tab === 'comments') {
         await adminApi.updateCommentStatus(item.id, status);
+      } else if (tab === 'orders') {
+        await adminApi.updateOrderStatus(item.id, status);
       }
       await refreshCurrentView(tab, page, keyword);
       if (detailType === tab && detailData?.id === item.id) {
@@ -985,7 +1222,7 @@ function App() {
 
   const handleAdminRoleChange = async (item) => {
     const nextRole = window.prompt(
-      '请输入新角色：super_admin / content_admin / viewer_admin',
+      '请输入新角色：super_admin / content_admin / viewer_admin / merchant_admin',
       item.role || 'content_admin',
     );
     if (!nextRole) {
@@ -1039,6 +1276,46 @@ function App() {
     setCategoryModalVisible(true);
   };
 
+  const openProductModalForCreate = () => {
+    setEditingProductId(null);
+    setProductModalMode('create');
+    setProductForm({
+      merchant_id: admin?.account_type === 'merchant' ? String(admin?.merchant_id || '') : '',
+      name: '',
+      cover_image: '',
+      description: '',
+      status: 'active',
+      sort_order: '0',
+      is_recommended: false,
+      sku_text: '',
+    });
+    setProductModalVisible(true);
+  };
+
+  const openProductModalForEdit = async (productId) => {
+    setModalLoading(true);
+    try {
+      const detail = await adminApi.getProductDetail(productId);
+      setEditingProductId(productId);
+      setProductModalMode('edit');
+      setProductForm({
+        merchant_id: detail.merchant?.id ? String(detail.merchant.id) : '',
+        name: detail.name || '',
+        cover_image: detail.cover_image || '',
+        description: detail.description || '',
+        status: detail.status || 'active',
+        sort_order: String(detail.sort_order ?? 0),
+        is_recommended: Boolean(detail.is_recommended),
+        sku_text: stringifySkus(detail.skus || []),
+      });
+      setProductModalVisible(true);
+    } catch (error) {
+      window.alert(adminApi.getErrorMessage(error, '获取商品详情失败'));
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   const openCategoryModalForEdit = async (categoryId) => {
     setModalLoading(true);
     try {
@@ -1073,6 +1350,7 @@ function App() {
         is_recommended: false,
         sort_order: '0',
         recommendation_reason: '',
+        linked_product_id: '',
       });
       setArticleModalVisible(true);
     } catch (error) {
@@ -1102,6 +1380,7 @@ function App() {
         is_recommended: Boolean(detail.is_recommended),
         sort_order: String(detail.sort_order ?? 0),
         recommendation_reason: detail.recommendation_reason || '',
+        linked_product_id: detail.linked_product_id ? String(detail.linked_product_id) : '',
       });
       setArticleModalVisible(true);
     } catch (error) {
@@ -1139,6 +1418,44 @@ function App() {
     }
   };
 
+  const handleProductSubmit = async () => {
+    const payload = {
+      merchant_id: productForm.merchant_id ? Number(productForm.merchant_id) : null,
+      name: productForm.name.trim(),
+      cover_image: productForm.cover_image.trim(),
+      description: productForm.description.trim(),
+      status: productForm.status,
+      sort_order: Number(productForm.sort_order) || 0,
+      is_recommended: Boolean(productForm.is_recommended),
+      skus: parseSkuText(productForm.sku_text),
+    };
+
+    if (!payload.name) {
+      window.alert('商品名称不能为空');
+      return;
+    }
+    if (!payload.skus.length) {
+      window.alert('请至少填写一个规格');
+      return;
+    }
+
+    setModalLoading(true);
+    try {
+      if (productModalMode === 'create') {
+        await adminApi.createProduct(payload);
+      } else if (editingProductId) {
+        await adminApi.updateProduct(editingProductId, payload);
+      }
+
+      setProductModalVisible(false);
+      await refreshCurrentView('products', page, keyword);
+    } catch (error) {
+      window.alert(adminApi.getErrorMessage(error, '保存商品失败'));
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   const handleArticleSubmit = async () => {
     const payload = {
       title: articleForm.title.trim(),
@@ -1150,6 +1467,7 @@ function App() {
       is_recommended: Boolean(articleForm.is_recommended),
       sort_order: Number(articleForm.sort_order) || 0,
       recommendation_reason: articleForm.recommendation_reason.trim(),
+      linked_product_id: articleForm.linked_product_id ? Number(articleForm.linked_product_id) : null,
     };
 
     if (!payload.title || !payload.content || !payload.categoryId) {
@@ -1382,6 +1700,7 @@ function App() {
               <div className="panel-toolbar">
                 {((activeTab === 'categories' && hasPermission('categories:create'))
                   || (activeTab === 'articles' && hasPermission('articles:create'))
+                  || (activeTab === 'products' && hasPermission('products:create'))
                   || (activeTab === 'adminUsers' && hasPermission('admin_users:create'))) && (
                   <button
                     className="primary-button"
@@ -1390,6 +1709,8 @@ function App() {
                         ? openCategoryModalForCreate
                         : activeTab === 'articles'
                           ? openArticleModalForCreate
+                          : activeTab === 'products'
+                            ? openProductModalForCreate
                           : openAdminUserModal
                     }
                     disabled={modalLoading}
@@ -1398,6 +1719,8 @@ function App() {
                       ? '新增分类'
                       : activeTab === 'articles'
                         ? '新增文章'
+                        : activeTab === 'products'
+                          ? '新增商品'
                         : '新增管理员'}
                   </button>
                 )}
@@ -1482,6 +1805,7 @@ function App() {
                       onAdminPasswordReset: handleAdminPasswordReset,
                       onEditCategory: openCategoryModalForEdit,
                       onEditArticle: openArticleModalForEdit,
+                      onEditProduct: openProductModalForEdit,
                       onStatusChange: (item, status) => handleStatusUpdate(activeTab, item, status),
                       onEditSetting: handleSettingUpdate,
                       canDeleteUsers: hasPermission('users:delete'),
@@ -1495,6 +1819,9 @@ function App() {
                       canCreateArticles: hasPermission('articles:create'),
                       canEditArticles: hasPermission('articles:update'),
                       canDeleteArticles: hasPermission('articles:delete'),
+                      canCreateProducts: hasPermission('products:create'),
+                      canEditProducts: hasPermission('products:update'),
+                      canDeleteProducts: hasPermission('products:delete'),
                       canEditSettings: hasPermission('settings:update'),
                       canManageAdminUsers: hasPermission('admin_users:update_role') || hasPermission('admin_users:update_status') || hasPermission('admin_users:reset_password'),
                     })
@@ -1562,6 +1889,19 @@ function App() {
         }
         onClose={() => setArticleModalVisible(false)}
         onSubmit={handleArticleSubmit}
+      />
+
+      <ProductModal
+        loading={modalLoading}
+        visible={productModalVisible}
+        mode={productModalMode}
+        form={productForm}
+        isMerchantAccount={admin?.account_type === 'merchant'}
+        onChange={(field, value) =>
+          setProductForm((prev) => ({ ...prev, [field]: value }))
+        }
+        onClose={() => setProductModalVisible(false)}
+        onSubmit={handleProductSubmit}
       />
 
       <AdminUserModal
@@ -1667,6 +2007,35 @@ function renderTableHead(activeTab) {
         <th>描述</th>
         <th>文章数</th>
         <th>创建时间</th>
+        <th>操作</th>
+      </tr>
+    );
+  }
+
+  if (activeTab === 'products') {
+    return (
+      <tr>
+        <th>ID</th>
+        <th>商品名称</th>
+        <th>商家</th>
+        <th>状态</th>
+        <th>价格区间</th>
+        <th>库存</th>
+        <th>操作</th>
+      </tr>
+    );
+  }
+
+  if (activeTab === 'orders') {
+    return (
+      <tr>
+        <th>ID</th>
+        <th>订单号</th>
+        <th>商家</th>
+        <th>收货人</th>
+        <th>状态</th>
+        <th>金额</th>
+        <th>下单时间</th>
         <th>操作</th>
       </tr>
     );
@@ -1878,6 +2247,85 @@ function renderTableRows(activeTab, rows, handlers) {
     ));
   }
 
+  if (activeTab === 'products') {
+    return rows.map((product) => (
+      <tr key={product.id}>
+        <td>{product.id}</td>
+        <td>
+          <div className="table-title">{product.name}</div>
+          <div className="table-subcopy">{truncateText(product.description, 42)}</div>
+        </td>
+        <td>{product.merchant?.name || '--'}</td>
+        <td>{`${product.status === 'active' ? '上架中' : '已下架'}${product.is_recommended ? ' / 推荐' : ''}`}</td>
+        <td>{`¥${product.price_range || '0.00'}`}</td>
+        <td>{product.stock ?? 0}</td>
+        <td>
+          <div className="table-actions">
+            <button className="text-button" onClick={() => handlers.onView(product.id)}>
+              查看
+            </button>
+            {handlers.canEditProducts ? (
+              <button className="ghost-button" onClick={() => handlers.onEditProduct(product.id)}>
+                编辑
+              </button>
+            ) : null}
+            {handlers.canDeleteProducts ? (
+              <button className="danger-button" onClick={() => handlers.onDelete(product)}>
+                删除
+              </button>
+            ) : null}
+          </div>
+        </td>
+      </tr>
+    ));
+  }
+
+  if (activeTab === 'orders') {
+    return rows.map((order) => {
+      const nextActionMap = {
+        processing: 'shipped',
+        shipped: 'completed',
+      };
+      const nextStatus = nextActionMap[order.status];
+      const nextLabel = nextStatus ? ORDER_STATUS_LABELS[nextStatus] : '';
+
+      return (
+        <tr key={order.id}>
+          <td>{order.id}</td>
+          <td>
+            <div className="table-title">{order.order_no}</div>
+            <div className="table-subcopy">{order.items?.[0]?.product_name_snapshot || '--'}</div>
+          </td>
+          <td>{order.merchant?.name || '--'}</td>
+          <td>{order.receiver_name || '--'}</td>
+          <td>{ORDER_STATUS_LABELS[order.status] || order.status || '--'}</td>
+          <td>{`¥${Number(order.total_amount || 0).toFixed(2)}`}</td>
+          <td>{formatDate(order.created_at)}</td>
+          <td>
+            <div className="table-actions">
+              <button className="text-button" onClick={() => handlers.onView(order.id)}>
+                查看
+              </button>
+              {nextStatus ? (
+                <button className="ghost-button" onClick={() => handlers.onStatusChange(order, nextStatus)}>
+                  标记为{nextLabel}
+                </button>
+              ) : null}
+              {order.status === 'pending_confirmation' ? (
+                <span className="table-subcopy">等待用户支付</span>
+              ) : null}
+              {order.status === 'pending_confirmation' ? (
+                <button className="danger-button" onClick={() => handlers.onStatusChange(order, 'cancelled')}>
+                  取消订单
+                </button>
+              ) : null}
+            </div>
+          </td>
+        </tr>
+      );
+    });
+  }
+
   return rows.map((article) => (
     <tr key={article.id}>
       <td>{article.id}</td>
@@ -1914,8 +2362,10 @@ function getColumnCount(activeTab) {
   if (activeTab === 'adminUsers') return 7;
   if (activeTab === 'posts') return 8;
   if (activeTab === 'comments') return 7;
+  if (activeTab === 'products') return 7;
   if (activeTab === 'settings') return 5;
   if (activeTab === 'auditLogs') return 5;
+  if (activeTab === 'orders') return 8;
   if (activeTab === 'articles') return 7;
   return 6;
 }
@@ -1949,6 +2399,14 @@ function getDetailTitle(detailType, detailData, loading) {
     return detailData.title || '文章详情';
   }
 
+  if (detailType === 'products') {
+    return detailData.name || '商品详情';
+  }
+
+  if (detailType === 'orders') {
+    return detailData.order_no || `订单 #${detailData.id}`;
+  }
+
   return '详情';
 }
 
@@ -1975,6 +2433,14 @@ function getDetailSubtitle(detailType, detailData) {
 
   if (detailType === 'articles') {
     return `分类：${detailData.category?.name || '--'}`;
+  }
+
+  if (detailType === 'products') {
+    return `商家：${detailData.merchant?.name || '--'}`;
+  }
+
+  if (detailType === 'orders') {
+    return `商家：${detailData.merchant?.name || '--'}`;
   }
 
   return '';
@@ -2173,9 +2639,108 @@ function renderDetailContent(detailType, detailData) {
           </section>
         ) : null}
 
+        {detailData.linked_product ? (
+          <section className="detail-block">
+            <div className="section-title">关联商品</div>
+            <div className="detail-copy">{`${detailData.linked_product.name} (#${detailData.linked_product.id})`}</div>
+          </section>
+        ) : null}
+
         <section className="detail-block">
           <div className="section-title">文章正文</div>
           <div className="detail-copy">{detailData.content || '暂无内容'}</div>
+        </section>
+      </>
+    );
+  }
+
+  if (detailType === 'products') {
+    return (
+      <>
+        <section className="detail-block">
+          <div className="detail-row">
+            <span>状态</span>
+            <strong>{detailData.status === 'active' ? '上架中' : '已下架'}</strong>
+          </div>
+          <div className="detail-row">
+            <span>价格区间</span>
+            <strong>{`¥${detailData.price_range || '0.00'}`}</strong>
+          </div>
+          <div className="detail-row">
+            <span>总库存</span>
+            <strong>{detailData.stock ?? 0}</strong>
+          </div>
+        </section>
+
+        <section className="detail-block">
+          <div className="section-title">商品描述</div>
+          <div className="detail-copy">{detailData.description || '暂无描述'}</div>
+        </section>
+
+        <section className="detail-block">
+          <div className="section-title">规格列表</div>
+          {detailData.skus?.length ? (
+            <div className="detail-stack">
+              {detailData.skus.map((sku) => (
+                <div className="detail-list-card" key={sku.id}>
+                  <div className="detail-list-header">
+                    <strong>{`${sku.spec_name} / ${sku.spec_value}`}</strong>
+                    <span>{formatPrice(sku.price)}</span>
+                  </div>
+                  <div className="detail-copy">{`库存 ${sku.stock} · ${sku.status === 'active' ? '启用' : '停用'}`}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="panel-muted">暂无规格</div>
+          )}
+        </section>
+      </>
+    );
+  }
+
+  if (detailType === 'orders') {
+    return (
+      <>
+        <section className="detail-block">
+          <div className="detail-row">
+            <span>订单状态</span>
+            <strong>{ORDER_STATUS_LABELS[detailData.status] || detailData.status || '--'}</strong>
+          </div>
+          <div className="detail-row">
+            <span>下单时间</span>
+            <strong>{formatDate(detailData.created_at)}</strong>
+          </div>
+          <div className="detail-row">
+            <span>订单金额</span>
+            <strong>{`¥${Number(detailData.total_amount || 0).toFixed(2)}`}</strong>
+          </div>
+        </section>
+
+        <section className="detail-block">
+          <div className="section-title">收货信息</div>
+          <div className="detail-copy">{`${detailData.receiver_name || '--'} · ${detailData.receiver_phone || '--'}`}</div>
+          <div className="detail-copy">{detailData.receiver_address || '--'}</div>
+          <div className="detail-copy">{`备注：${detailData.remark || '无'}`}</div>
+        </section>
+
+        <section className="detail-block">
+          <div className="section-title">商品明细</div>
+          {detailData.items?.length ? (
+            <div className="detail-stack">
+              {detailData.items.map((item) => (
+                <div className="detail-list-card" key={item.id}>
+                  <div className="detail-list-header">
+                    <strong>{item.product_name_snapshot}</strong>
+                    <span>{`¥${Number(item.amount || 0).toFixed(2)}`}</span>
+                  </div>
+                  <div className="detail-copy">{`${item.sku_snapshot} · 单价 ¥${Number(item.price || 0).toFixed(2)} × ${item.quantity}`}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="panel-muted">暂无商品明细</div>
+          )}
         </section>
       </>
     );

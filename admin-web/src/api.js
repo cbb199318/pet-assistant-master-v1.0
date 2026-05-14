@@ -180,6 +180,38 @@ export const adminApi = {
     const response = await client.delete(`/api/admin/content/articles/${id}`);
     return response.data;
   },
+  getOrders: async (params) => {
+    const response = await client.get('/api/admin/orders', { params });
+    return response.data;
+  },
+  getOrderDetail: async (id) => {
+    const response = await client.get(`/api/admin/orders/${id}`);
+    return response.data;
+  },
+  updateOrderStatus: async (id, status) => {
+    const response = await client.put(`/api/admin/orders/${id}/status`, { status });
+    return response.data;
+  },
+  getProducts: async (params) => {
+    const response = await client.get('/api/admin/products', { params });
+    return response.data;
+  },
+  getProductDetail: async (id) => {
+    const response = await client.get(`/api/admin/products/${id}`);
+    return response.data;
+  },
+  createProduct: async (payload) => {
+    const response = await client.post('/api/admin/products', payload);
+    return response.data;
+  },
+  updateProduct: async (id, payload) => {
+    const response = await client.put(`/api/admin/products/${id}`, payload);
+    return response.data;
+  },
+  deleteProduct: async (id) => {
+    const response = await client.delete(`/api/admin/products/${id}`);
+    return response.data;
+  },
   getSystemSettings: async () => {
     const response = await client.get('/api/admin/system/settings');
     return response.data;

@@ -12,6 +12,7 @@ import { CommunityModule } from './community/community.module';
 import { KnowledgeModule } from './knowledge/knowledge.module';
 import { AdminModule } from './admin/admin.module';
 import { DemoModule } from './demo/demo.module';
+import { ShopModule } from './shop/shop.module';
 import { AdminUser } from './admin/admin-user.entity';
 import { AdminAuditLog } from './admin/admin-audit-log.entity';
 import { SystemSetting } from './admin/system-setting.entity';
@@ -27,6 +28,12 @@ import { Comment } from './community/comment.entity';
 import { Booking } from './community/booking.entity';
 import { Article } from './knowledge/article.entity';
 import { Category } from './knowledge/category.entity';
+import { Merchant } from './shop/merchant.entity';
+import { Product } from './shop/product.entity';
+import { ProductSku } from './shop/product-sku.entity';
+import { UserAddress } from './shop/user-address.entity';
+import { ShopOrder } from './shop/order.entity';
+import { OrderItem } from './shop/order-item.entity';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -47,6 +54,12 @@ const entities = [
   Booking,
   Article,
   Category,
+  Merchant,
+  Product,
+  ProductSku,
+  UserAddress,
+  ShopOrder,
+  OrderItem,
 ];
 
 const databaseType = process.env.DB_TYPE || 'sqljs';
@@ -88,6 +101,7 @@ const databaseConfig =
     KnowledgeModule,
     AdminModule,
     DemoModule,
+    ShopModule,
   ],
   controllers: [AppController],
   providers: [AppService],

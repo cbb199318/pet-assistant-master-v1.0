@@ -244,6 +244,7 @@ export class AdminController {
         is_recommended?: boolean;
         sort_order?: number;
         recommendation_reason?: string;
+        linked_product_id?: number | null;
       },
     @Req() req,
   ) {
@@ -264,6 +265,7 @@ export class AdminController {
         is_recommended?: boolean;
         sort_order?: number;
         recommendation_reason?: string;
+        linked_product_id?: number | null;
       },
     @Req() req,
   ) {
@@ -273,6 +275,113 @@ export class AdminController {
   @Delete('content/articles/:id')
   async deleteArticle(@Param('id') id: string, @Req() req) {
     return this.adminService.deleteArticle(Number(id), req.user);
+  }
+
+  @Get('orders')
+  async getOrders(
+    @Query('keyword') keyword: string = '',
+    @Query('page') page: string = '1',
+    @Query('pageSize') pageSize: string = '10',
+    @Req() req,
+  ) {
+    return this.adminService.getOrders(
+      {
+        keyword,
+        page: Number(page) || 1,
+        pageSize: Number(pageSize) || 10,
+      },
+      req.user,
+    );
+  }
+
+  @Get('orders/:id')
+  async getOrderById(@Param('id') id: string, @Req() req) {
+    return this.adminService.getOrderById(Number(id), req.user);
+  }
+
+  @Put('orders/:id/status')
+  async updateOrderStatus(
+    @Param('id') id: string,
+    @Body() body: { status: string },
+    @Req() req,
+  ) {
+    return this.adminService.updateOrderStatus(Number(id), body.status, req.user);
+  }
+
+  @Get('products')
+  async getProducts(
+    @Query('keyword') keyword: string = '',
+    @Query('page') page: string = '1',
+    @Query('pageSize') pageSize: string = '10',
+    @Req() req,
+  ) {
+    return this.adminService.getProducts(
+      {
+        keyword,
+        page: Number(page) || 1,
+        pageSize: Number(pageSize) || 10,
+      },
+      req.user,
+    );
+  }
+
+  @Get('products/:id')
+  async getProductById(@Param('id') id: string, @Req() req) {
+    return this.adminService.getProductById(Number(id), req.user);
+  }
+
+  @Post('products')
+  async createProduct(
+    @Body()
+    body: {
+      merchant_id?: number | null;
+      name: string;
+      cover_image?: string;
+      description?: string;
+      status?: string;
+      sort_order?: number;
+      is_recommended?: boolean;
+      skus: Array<{
+        spec_name: string;
+        spec_value: string;
+        price: number;
+        stock: number;
+        status?: string;
+      }>;
+    },
+    @Req() req,
+  ) {
+    return this.adminService.createProduct(body, req.user);
+  }
+
+  @Put('products/:id')
+  async updateProduct(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      name?: string;
+      cover_image?: string;
+      description?: string;
+      status?: string;
+      sort_order?: number;
+      is_recommended?: boolean;
+      skus?: Array<{
+        id?: number;
+        spec_name: string;
+        spec_value: string;
+        price: number;
+        stock: number;
+        status?: string;
+      }>;
+    },
+    @Req() req,
+  ) {
+    return this.adminService.updateProduct(Number(id), body, req.user);
+  }
+
+  @Delete('products/:id')
+  async deleteProduct(@Param('id') id: string, @Req() req) {
+    return this.adminService.deleteProduct(Number(id), req.user);
   }
 
   @Get('system/settings')

@@ -53,6 +53,16 @@ const ArticleDetailScreen = ({ navigation, route }: any) => {
     }
   };
 
+  const handleBuyNow = () => {
+    if (!article?.linked_product?.id && !article?.linked_product_id) {
+      return;
+    }
+
+    navigation.navigate('ProductDetail', {
+      productId: article.linked_product?.id || article.linked_product_id,
+    });
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -89,6 +99,14 @@ const ArticleDetailScreen = ({ navigation, route }: any) => {
                 <Text style={styles.actionChipText}>⭐ {article.favorites || 0}</Text>
               </TouchableOpacity>
             </View>
+            {article.linked_product?.id || article.linked_product_id ? (
+              <TouchableOpacity style={styles.buyButton} onPress={handleBuyNow}>
+                <Text style={styles.buyButtonText}>
+                  查看商品
+                  {article.linked_product?.price_range ? ` · ¥${article.linked_product.price_range}` : ''}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
             <Text style={styles.contentText}>{article.content}</Text>
           </View>
         </ScrollView>
@@ -127,6 +145,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   actionChipText: { color: '#446254', fontWeight: '600' },
+  buyButton: {
+    marginBottom: 18,
+    backgroundColor: '#edf7ef',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  buyButtonText: { color: '#2f7d4f', fontWeight: '700' },
   contentText: { color: '#43504a', lineHeight: 26, fontSize: 15 },
 });
 

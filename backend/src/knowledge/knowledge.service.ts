@@ -3,13 +3,36 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Article } from './article.entity';
 import { Category } from './category.entity';
+import { Product } from '../shop/product.entity';
 
 @Injectable()
 export class KnowledgeService {
   constructor(
     @InjectRepository(Article) private articleRepository: Repository<Article>,
     @InjectRepository(Category) private categoryRepository: Repository<Category>,
+    @InjectRepository(Product) private productRepository: Repository<Product>,
   ) {}
+
+  private formatArticle(article: Article) {
+    return {
+      ...article,
+      linked_product: article.linked_product
+        ? {
+            id: article.linked_product.id,
+            name: article.linked_product.name,
+            cover_image: article.linked_product.cover_image,
+            price_range: article.linked_product.price_range,
+            stock: article.linked_product.stock,
+            merchant: article.linked_product.merchant
+              ? {
+                  id: article.linked_product.merchant.id,
+                  name: article.linked_product.merchant.name,
+                }
+              : null,
+          }
+        : null,
+    };
+  }
 
   // 分类相关操作
   async createCategory(categoryData: {
@@ -65,10 +88,21 @@ export class KnowledgeService {
     is_recommended?: boolean;
     sort_order?: number;
     recommendation_reason?: string;
+    linked_product_id?: number;
   }): Promise<Article> {
     const category = await this.categoryRepository.findOne({ where: { id: articleData.categoryId } });
     if (!category) {
       throw new NotFoundException('Category not found');
+    }
+
+    let linkedProduct: Product | null = null;
+    if (articleData.linked_product_id) {
+      linkedProduct = await this.productRepository.findOne({
+        where: { id: articleData.linked_product_id },
+      });
+      if (!linkedProduct) {
+        throw new NotFoundException('Linked product not found');
+      }
     }
 
     const article = this.articleRepository.create({
@@ -81,25 +115,29 @@ export class KnowledgeService {
       is_recommended: Boolean(articleData.is_recommended),
       sort_order: Number(articleData.sort_order) || 0,
       recommendation_reason: articleData.recommendation_reason || null,
+      linked_product: linkedProduct,
+      linked_product_id: linkedProduct?.id ?? null,
     });
 
-    return this.articleRepository.save(article);
+    const saved = await this.articleRepository.save(article);
+    return this.getArticleById(saved.id);
   }
 
-  async getArticles(limit: number = 10, offset: number = 0, kind: string = 'knowledge'): Promise<Article[]> {
-    return this.articleRepository.find({
+  async getArticles(limit: number = 10, offset: number = 0, kind: string = 'knowledge'): Promise<any[]> {
+    const items = await this.articleRepository.find({
       where: { status: 'published', kind },
-      relations: ['category'],
+      relations: ['category', 'linked_product', 'linked_product.merchant'],
       order: { sort_order: 'DESC', created_at: 'DESC' },
       take: limit,
       skip: offset,
     });
+    return items.map((item) => this.formatArticle(item));
   }
 
-  async getArticleById(id: number): Promise<Article> {
+  async getArticleById(id: number): Promise<any> {
     const article = await this.articleRepository.findOne({
       where: { id, status: 'published' },
-      relations: ['category'],
+      relations: ['category', 'linked_product', 'linked_product.merchant'],
     });
     if (!article) {
       throw new NotFoundException('Article not found');
@@ -109,17 +147,18 @@ export class KnowledgeService {
     article.views++;
     await this.articleRepository.save(article);
 
-    return article;
+    return this.formatArticle(article);
   }
 
-  async getArticlesByCategoryId(categoryId: number, limit: number = 10, offset: number = 0, kind: string = 'knowledge'): Promise<Article[]> {
-    return this.articleRepository.find({
+  async getArticlesByCategoryId(categoryId: number, limit: number = 10, offset: number = 0, kind: string = 'knowledge'): Promise<any[]> {
+    const items = await this.articleRepository.find({
       where: { category: { id: categoryId }, status: 'published', kind },
-      relations: ['category'],
+      relations: ['category', 'linked_product', 'linked_product.merchant'],
       order: { sort_order: 'DESC', created_at: 'DESC' },
       take: limit,
       skip: offset,
     });
+    return items.map((item) => this.formatArticle(item));
   }
 
   async updateArticle(id: number, articleData: {
@@ -133,8 +172,15 @@ export class KnowledgeService {
     is_recommended?: boolean;
     sort_order?: number;
     recommendation_reason?: string;
+    linked_product_id?: number | null;
   }): Promise<Article> {
-    const article = await this.getArticleById(id);
+    const article = await this.articleRepository.findOne({
+      where: { id },
+      relations: ['category', 'linked_product', 'linked_product.merchant'],
+    });
+    if (!article) {
+      throw new NotFoundException('Article not found');
+    }
 
     if (articleData.categoryId) {
       const category = await this.categoryRepository.findOne({ where: { id: articleData.categoryId } });
@@ -143,6 +189,22 @@ export class KnowledgeService {
       }
       article.category = category;
       delete articleData.categoryId;
+    }
+
+    if (articleData.linked_product_id !== undefined) {
+      if (!articleData.linked_product_id) {
+        article.linked_product = null;
+        article.linked_product_id = null;
+      } else {
+        const linkedProduct = await this.productRepository.findOne({
+          where: { id: articleData.linked_product_id },
+        });
+        if (!linkedProduct) {
+          throw new NotFoundException('Linked product not found');
+        }
+        article.linked_product = linkedProduct;
+        article.linked_product_id = linkedProduct.id;
+      }
     }
 
     Object.assign(article, {
@@ -160,7 +222,8 @@ export class KnowledgeService {
           : article.recommendation_reason,
     });
     delete (article as Partial<Article> & { image?: string }).image;
-    return this.articleRepository.save(article);
+    const saved = await this.articleRepository.save(article);
+    return this.getArticleById(saved.id);
   }
 
   async deleteArticle(id: number): Promise<void> {
@@ -183,9 +246,11 @@ export class KnowledgeService {
   }
 
   // 搜索和推荐
-  async searchArticles(keyword: string, limit: number = 10): Promise<Article[]> {
-    return this.articleRepository.createQueryBuilder('article')
+  async searchArticles(keyword: string, limit: number = 10): Promise<any[]> {
+    const items = await this.articleRepository.createQueryBuilder('article')
       .leftJoinAndSelect('article.category', 'category')
+      .leftJoinAndSelect('article.linked_product', 'linked_product')
+      .leftJoinAndSelect('linked_product.merchant', 'linked_product_merchant')
       .where('article.status = :status', { status: 'published' })
       .andWhere('article.kind = :kind', { kind: 'knowledge' })
       .andWhere('(article.title LIKE :keyword OR article.content LIKE :keyword)', { keyword: `%${keyword}%` })
@@ -193,23 +258,26 @@ export class KnowledgeService {
       .addOrderBy('article.created_at', 'DESC')
       .take(limit)
       .getMany();
+    return items.map((item) => this.formatArticle(item));
   }
 
-  async getRecommendedArticles(limit: number = 5): Promise<Article[]> {
-    return this.articleRepository.find({
+  async getRecommendedArticles(limit: number = 5): Promise<any[]> {
+    const items = await this.articleRepository.find({
       where: { status: 'published', kind: 'knowledge', is_recommended: true },
-      relations: ['category'],
+      relations: ['category', 'linked_product', 'linked_product.merchant'],
       order: { sort_order: 'DESC', views: 'DESC' },
       take: limit,
     });
+    return items.map((item) => this.formatArticle(item));
   }
 
-  async getRecommendedProducts(limit: number = 6): Promise<Article[]> {
-    return this.articleRepository.find({
+  async getRecommendedProducts(limit: number = 6): Promise<any[]> {
+    const items = await this.articleRepository.find({
       where: { status: 'published', kind: 'product', is_recommended: true },
-      relations: ['category'],
+      relations: ['category', 'linked_product', 'linked_product.merchant'],
       order: { sort_order: 'DESC', created_at: 'DESC' },
       take: limit,
     });
+    return items.map((item) => this.formatArticle(item));
   }
 }

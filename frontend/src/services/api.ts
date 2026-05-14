@@ -265,6 +265,72 @@ interface MessageResponse {
   message: string;
 }
 
+export interface ProductSku {
+  id: number;
+  spec_name: string;
+  spec_value: string;
+  price: number;
+  stock: number;
+  status: string;
+}
+
+export interface Product {
+  id: number;
+  name: string;
+  cover_image?: string | null;
+  description?: string | null;
+  status: string;
+  price_range: string;
+  stock: number;
+  is_recommended: boolean;
+  sort_order: number;
+  merchant?: {
+    id: number;
+    name: string;
+    status?: string;
+  } | null;
+  skus?: ProductSku[];
+}
+
+export interface UserAddress {
+  id: number;
+  receiver_name: string;
+  receiver_phone: string;
+  receiver_address: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrderItem {
+  id: number;
+  product_id: number;
+  sku_id: number;
+  product_name_snapshot: string;
+  sku_snapshot: string;
+  price: number;
+  quantity: number;
+  amount: number;
+}
+
+export interface Order {
+  id: number;
+  order_no: string;
+  status: string;
+  total_amount: number;
+  receiver_name: string;
+  receiver_phone: string;
+  receiver_address: string;
+  remark?: string | null;
+  created_at: string;
+  updated_at: string;
+  merchant?: {
+    id: number;
+    name: string;
+  } | null;
+  items?: OrderItem[];
+}
+
 export const authApi = {
   login: (data: { phone: string; password: string }) =>
     request<AuthResponse>({
@@ -668,6 +734,103 @@ export const knowledgeApi = {
     request<any>({
       url: `/api/knowledge/articles/${id}/favorite`,
       method: 'POST',
+    }),
+};
+
+export const shopApi = {
+  getProducts: (params?: { limit?: number; keyword?: string }) =>
+    request<Product[]>({
+      url: '/api/shop/products',
+      method: 'GET',
+      params,
+    }),
+
+  getRecommendedProducts: (params?: { limit?: number }) =>
+    request<Product[]>({
+      url: '/api/shop/products/recommended',
+      method: 'GET',
+      params,
+    }),
+
+  getProductDetail: (id: number) =>
+    request<Product>({
+      url: `/api/shop/products/${id}`,
+      method: 'GET',
+    }),
+
+  getAddresses: () =>
+    request<UserAddress[]>({
+      url: '/api/shop/addresses',
+      method: 'GET',
+    }),
+
+  createAddress: (data: {
+    receiver_name: string;
+    receiver_phone: string;
+    receiver_address: string;
+    is_default?: boolean;
+  }) =>
+    request<UserAddress>({
+      url: '/api/shop/addresses',
+      method: 'POST',
+      data,
+    }),
+
+  updateAddress: (id: number, data: {
+    receiver_name?: string;
+    receiver_phone?: string;
+    receiver_address?: string;
+    is_default?: boolean;
+  }) =>
+    request<UserAddress>({
+      url: `/api/shop/addresses/${id}`,
+      method: 'PUT',
+      data,
+    }),
+
+  deleteAddress: (id: number) =>
+    request<MessageResponse>({
+      url: `/api/shop/addresses/${id}`,
+      method: 'DELETE',
+    }),
+
+  createOrder: (data: {
+    addressId: number;
+    remark?: string;
+    items: Array<{
+      productId: number;
+      skuId: number;
+      quantity: number;
+    }>;
+  }) =>
+    request<Order>({
+      url: '/api/shop/orders',
+      method: 'POST',
+      data,
+    }),
+
+  getOrders: () =>
+    request<Order[]>({
+      url: '/api/shop/orders',
+      method: 'GET',
+    }),
+
+  getOrderDetail: (id: number) =>
+    request<Order>({
+      url: `/api/shop/orders/${id}`,
+      method: 'GET',
+    }),
+
+  cancelOrder: (id: number) =>
+    request<Order>({
+      url: `/api/shop/orders/${id}/cancel`,
+      method: 'PUT',
+    }),
+
+  payOrder: (id: number) =>
+    request<Order>({
+      url: `/api/shop/orders/${id}/pay`,
+      method: 'PUT',
     }),
 };
 

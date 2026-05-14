@@ -23,6 +23,11 @@ import CommunityScreen from './src/screens/CommunityScreen';
 import KnowledgeScreen from './src/screens/KnowledgeScreen';
 import PostDetailScreen from './src/screens/PostDetailScreen';
 import ArticleDetailScreen from './src/screens/ArticleDetailScreen';
+import ProductDetailScreen from './src/screens/ProductDetailScreen';
+import AddressManagementScreen from './src/screens/AddressManagementScreen';
+import OrderConfirmScreen from './src/screens/OrderConfirmScreen';
+import MyOrdersScreen from './src/screens/MyOrdersScreen';
+import OrderDetailScreen from './src/screens/OrderDetailScreen';
 import { userApi } from './src/services/api';
 
 const Stack = createStackNavigator();
@@ -179,6 +184,11 @@ export default function App() {
         <Stack.Screen name="EditCare" component={AddCareScreen} />
         <Stack.Screen name="PostDetail" component={PostDetailScreen} />
         <Stack.Screen name="ArticleDetail" component={ArticleDetailScreen} />
+        <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
+        <Stack.Screen name="AddressManagement" component={AddressManagementScreen} />
+        <Stack.Screen name="OrderConfirm" component={OrderConfirmScreen} />
+        <Stack.Screen name="MyOrders" component={MyOrdersScreen} />
+        <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
       </Stack.Navigator>
       <StatusBar style="auto" />
     </NavigationContainer>

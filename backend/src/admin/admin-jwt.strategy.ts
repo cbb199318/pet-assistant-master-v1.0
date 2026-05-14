@@ -23,6 +23,9 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
       adminId: payload.adminId,
       username: payload.username,
       role: payload.role || 'content_admin',
+      account_type: payload.account_type || 'platform',
+      merchant_id: payload.merchant_id ?? null,
+      merchant_name: payload.merchant_name ?? null,
     };
   }
 }

@@ -168,7 +168,11 @@ const KnowledgeScreen = ({ navigation }: any) => {
                   key={item.id}
                   style={styles.productCard}
                   activeOpacity={0.9}
-                  onPress={() => navigation.navigate('ArticleDetail', { articleId: item.id })}
+                  onPress={() =>
+                    item.linked_product_id
+                      ? navigation.navigate('ProductDetail', { productId: item.linked_product_id })
+                      : navigation.navigate('ArticleDetail', { articleId: item.id })
+                  }
                 >
                   {item.cover_image ? (
                     <Image

@@ -248,6 +248,20 @@ const SettingsScreen = ({ navigation }: any) => {
           </View>
         </View>
 
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>商城服务</Text>
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('MyOrders')}>
+              <Text style={styles.menuText}>我的订单</Text>
+              <Text style={styles.menuArrow}>→</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuItem, styles.lastItem]} onPress={() => navigation.navigate('AddressManagement')}>
+              <Text style={styles.menuText}>收货地址</Text>
+              <Text style={styles.menuArrow}>→</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>退出登录</Text>
         </TouchableOpacity>
