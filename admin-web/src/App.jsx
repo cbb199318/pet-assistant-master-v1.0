@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { adminApi, getAdminToken, setAdminToken } from './api';
 
 const overviewLabels = [
@@ -290,29 +290,27 @@ function formatPrice(value) {
   return `¥${Number(value || 0).toFixed(2)}`;
 }
 
-function parseSkuText(value) {
-  const lines = (value || '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
+const SKU_TEMPLATE_OPTIONS = ['颜色', '尺寸', '容量', '型号', '套餐'];
 
-  return lines.map((line) => {
-    const [spec_name = '', spec_value = '', price = '0', stock = '0'] = line.split('|').map((item) => item.trim());
-    return {
-      spec_name,
-      spec_value,
-      price: Number(price) || 0,
-      stock: Number(stock) || 0,
-      status: 'active',
-    };
-  });
+function getActiveSkus(source = []) {
+  return (source || []).filter((item) => item?.status !== 'inactive');
 }
 
-function stringifySkus(skus = []) {
-  return skus
-    .filter((item) => item.status !== 'inactive')
-    .map((item) => [item.spec_name, item.spec_value, item.price, item.stock].join('|'))
-    .join('\n');
+function getPrimarySku(skus = []) {
+  const activeSkus = getActiveSkus(skus);
+  return activeSkus[0] || null;
+}
+
+function buildSingleSkuPayload(form) {
+  return [
+    {
+      spec_name: String(form.sku_label || '').trim() || '规格',
+      spec_value: String(form.sku_value || '').trim() || '默认款',
+      price: Number(form.price),
+      stock: Number(form.stock),
+      status: 'active',
+    },
+  ];
 }
 
 function LoginView({ loading, error, onSubmit }) {
@@ -672,12 +670,44 @@ function ProductModal({
   form,
   isMerchantAccount,
   onChange,
+  onUploadCover,
+  onApplySkuTemplate,
   onClose,
   onSubmit,
 }) {
+  const coverInputRef = useRef(null);
+  const [coverUploading, setCoverUploading] = useState(false);
   if (!visible) {
     return null;
   }
+  const previewLabel = String(form.sku_label || '').trim() || '规格';
+  const previewValue = String(form.sku_value || '').trim() || '默认款';
+  const hasPrice = String(form.price ?? '').trim() !== '';
+  const hasStock = String(form.stock ?? '').trim() !== '';
+  const coverPreview = form.cover_image
+    ? (String(form.cover_image).startsWith('data:') || String(form.cover_image).startsWith('http')
+      ? form.cover_image
+      : `${adminApi.getBaseUrl()}${String(form.cover_image).startsWith('/') ? '' : '/'}${form.cover_image}`)
+    : '';
+
+  const handleCoverFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    setCoverUploading(true);
+    Promise.resolve(onUploadCover(file))
+      .then((url) => {
+        onChange('cover_image', url || '');
+      })
+      .catch((error) => {
+        window.alert(adminApi.getErrorMessage(error, '上传商品封面失败'));
+      })
+      .finally(() => {
+        setCoverUploading(false);
+        event.target.value = '';
+      });
+  };
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -712,12 +742,45 @@ function ProductModal({
             />
           </label>
           <label>
-            <span>封面图地址</span>
-            <input
-              value={form.cover_image}
-              onChange={(event) => onChange('cover_image', event.target.value)}
-              placeholder="/uploads/product-cover.jpg"
-            />
+            <span>商品封面</span>
+            <div className="cover-upload-card">
+              {coverPreview ? (
+                <img className="cover-upload-preview" src={coverPreview} alt="商品封面预览" />
+              ) : (
+                <div className="cover-upload-empty">
+                  <strong>还没有封面图</strong>
+                  <span>建议上传一张方图，商品列表和详情会更完整。</span>
+                </div>
+              )}
+
+              <div className="cover-upload-actions">
+                <input
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="cover-upload-input"
+                  onChange={handleCoverFileChange}
+                />
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => coverInputRef.current?.click()}
+                  disabled={coverUploading}
+                >
+                  {coverUploading ? '上传中...' : coverPreview ? '重新上传' : '选择图片'}
+                </button>
+                {coverPreview ? (
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={() => onChange('cover_image', '')}
+                    disabled={coverUploading}
+                  >
+                    移除图片
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </label>
           <label>
             <span>状态</span>
@@ -754,22 +817,97 @@ function ProductModal({
               placeholder="请输入商品描述"
             />
           </label>
-          <label>
-            <span>规格列表</span>
-            <textarea
-              rows="8"
-              value={form.sku_text}
-              onChange={(event) => onChange('sku_text', event.target.value)}
-              placeholder={'每行一条规格，格式：规格名|规格值|价格|库存\n例如：颜色|森林绿|29.9|20'}
-            />
-          </label>
         </div>
+
+        <section className="sku-editor-card">
+          <div className="sku-editor-header">
+            <div>
+              <div className="section-title">销售规格</div>
+              <div className="panel-muted">
+                现在只保留单规格商品录入。商家只需要填写一个销售标签、一个规格说明、一个售价和一个库存。
+              </div>
+            </div>
+          </div>
+
+          {form.had_multiple_skus ? (
+            <div className="inline-warning">
+              当前商品历史上存在多个规格。为了简化商家操作，这里只保留一个单规格表单；本次保存后会收敛为当前填写的这一条规格。
+            </div>
+          ) : null}
+
+          <div className="sku-template-row">
+            <span>常用销售标签</span>
+            <div className="sku-template-actions">
+              {SKU_TEMPLATE_OPTIONS.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className="ghost-button sku-template-button"
+                  onClick={() => onApplySkuTemplate(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="sku-single-grid">
+            <label>
+              <span>销售标签</span>
+              <input
+                value={form.sku_label}
+                onChange={(event) => onChange('sku_label', event.target.value)}
+                placeholder="例如 颜色、尺寸、规格"
+              />
+            </label>
+            <label>
+              <span>规格说明</span>
+              <input
+                value={form.sku_value}
+                onChange={(event) => onChange('sku_value', event.target.value)}
+                placeholder="例如 标准版、森林绿、500ml，不填默认款"
+              />
+            </label>
+            <label>
+              <span>售价</span>
+              <input
+                value={form.price}
+                onChange={(event) => onChange('price', event.target.value)}
+                placeholder="例如 29.9"
+              />
+            </label>
+            <label>
+              <span>库存</span>
+              <input
+                value={form.stock}
+                onChange={(event) => onChange('stock', event.target.value)}
+                placeholder="例如 20"
+              />
+            </label>
+          </div>
+
+          <div className="sku-preview-card">
+            <div className="section-title">销售预览</div>
+            {hasPrice || hasStock ? (
+              <div className="sku-preview-list">
+                <div className="sku-preview-item">
+                  <strong>{`${previewLabel} / ${previewValue}`}</strong>
+                  <span>{`${formatPrice(form.price || 0)} · 库存 ${form.stock || 0}`}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="panel-muted">
+                先填写售价和库存，系统会按单规格商品创建；规格说明留空时默认显示“默认款”。
+              </div>
+            )}
+          </div>
+        </section>
 
         <div className="modal-actions">
           <button className="ghost-button" onClick={onClose} disabled={loading}>
             取消
           </button>
-          <button className="primary-button" onClick={onSubmit} disabled={loading}>
+          <button className="primary-button" onClick={onSubmit} disabled={loading || coverUploading}>
             {loading ? '提交中...' : mode === 'create' ? '创建商品' : '保存商品'}
           </button>
         </div>
@@ -830,7 +968,11 @@ function App() {
     status: 'active',
     sort_order: '0',
     is_recommended: false,
-    sku_text: '',
+    sku_label: '规格',
+    sku_value: '',
+    price: '',
+    stock: '',
+    had_multiple_skus: false,
   });
   const [adminUserModalVisible, setAdminUserModalVisible] = useState(false);
   const [adminUserForm, setAdminUserForm] = useState({
@@ -1287,7 +1429,11 @@ function App() {
       status: 'active',
       sort_order: '0',
       is_recommended: false,
-      sku_text: '',
+      sku_label: '规格',
+      sku_value: '',
+      price: '',
+      stock: '',
+      had_multiple_skus: false,
     });
     setProductModalVisible(true);
   };
@@ -1296,6 +1442,8 @@ function App() {
     setModalLoading(true);
     try {
       const detail = await adminApi.getProductDetail(productId);
+      const primarySku = getPrimarySku(detail.skus || []);
+      const activeSkus = getActiveSkus(detail.skus || []);
       setEditingProductId(productId);
       setProductModalMode('edit');
       setProductForm({
@@ -1306,7 +1454,11 @@ function App() {
         status: detail.status || 'active',
         sort_order: String(detail.sort_order ?? 0),
         is_recommended: Boolean(detail.is_recommended),
-        sku_text: stringifySkus(detail.skus || []),
+        sku_label: primarySku?.spec_name || '规格',
+        sku_value: primarySku?.spec_value === '默认款' ? '' : primarySku?.spec_value || '',
+        price: primarySku?.price != null ? String(primarySku.price) : '',
+        stock: primarySku?.stock != null ? String(primarySku.stock) : '',
+        had_multiple_skus: activeSkus.length > 1,
       });
       setProductModalVisible(true);
     } catch (error) {
@@ -1419,6 +1571,7 @@ function App() {
   };
 
   const handleProductSubmit = async () => {
+    const skus = buildSingleSkuPayload(productForm);
     const payload = {
       merchant_id: productForm.merchant_id ? Number(productForm.merchant_id) : null,
       name: productForm.name.trim(),
@@ -1427,7 +1580,7 @@ function App() {
       status: productForm.status,
       sort_order: Number(productForm.sort_order) || 0,
       is_recommended: Boolean(productForm.is_recommended),
-      skus: parseSkuText(productForm.sku_text),
+      skus,
     };
 
     if (!payload.name) {
@@ -1435,7 +1588,15 @@ function App() {
       return;
     }
     if (!payload.skus.length) {
-      window.alert('请至少填写一个规格');
+      window.alert('请至少填写一条完整的规格售价和库存');
+      return;
+    }
+    if (payload.skus.some((item) => Number.isNaN(item.price) || item.price < 0)) {
+      window.alert('规格售价必须是大于等于 0 的数字');
+      return;
+    }
+    if (payload.skus.some((item) => Number.isNaN(item.stock) || item.stock < 0)) {
+      window.alert('规格库存必须是大于等于 0 的数字');
       return;
     }
 
@@ -1899,6 +2060,18 @@ function App() {
         isMerchantAccount={admin?.account_type === 'merchant'}
         onChange={(field, value) =>
           setProductForm((prev) => ({ ...prev, [field]: value }))
+        }
+        onUploadCover={async (file) => {
+          const response = await adminApi.uploadProductCover(file);
+          return response.url;
+        }}
+        onApplySkuTemplate={(template) =>
+          setProductForm((prev) => {
+            return {
+              ...prev,
+              sku_label: template,
+            };
+          })
         }
         onClose={() => setProductModalVisible(false)}
         onSubmit={handleProductSubmit}

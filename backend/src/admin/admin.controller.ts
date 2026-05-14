@@ -1,11 +1,22 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from './admin-jwt.guard';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { mkdirSync, writeFileSync } from 'fs';
+import { extname } from 'path';
+import { PRODUCT_UPLOAD_DIR, PRODUCT_UPLOAD_LIMIT, PRODUCT_UPLOAD_PUBLIC_PREFIX } from '../uploads/upload.constants';
 
 @Controller('api/admin')
 @UseGuards(AdminJwtGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
+
+  private saveProductCover(file: { originalname: string; buffer: Buffer }) {
+    mkdirSync(PRODUCT_UPLOAD_DIR, { recursive: true });
+    const filename = `product-${Date.now()}-${Math.random().toString(36).slice(2, 10)}${extname(file.originalname || '.jpg') || '.jpg'}`;
+    writeFileSync(`${PRODUCT_UPLOAD_DIR}/${filename}`, file.buffer);
+    return `${PRODUCT_UPLOAD_PUBLIC_PREFIX}/${filename}`;
+  }
 
   @Get('dashboard/overview')
   async getOverview(@Req() req) {
@@ -328,6 +339,28 @@ export class AdminController {
   @Get('products/:id')
   async getProductById(@Param('id') id: string, @Req() req) {
     return this.adminService.getProductById(Number(id), req.user);
+  }
+
+  @Post('products/cover-upload')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: {
+        fileSize: PRODUCT_UPLOAD_LIMIT,
+      },
+      fileFilter: (_req, file, callback) => {
+        if (!file.mimetype.startsWith('image/')) {
+          return callback(new BadRequestException('仅支持上传图片文件'), false);
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  async uploadProductCover(@UploadedFile() file: any, @Req() req) {
+    if (!file) {
+      throw new BadRequestException('请上传商品封面图');
+    }
+    const url = this.saveProductCover(file);
+    return this.adminService.recordProductCoverUpload(url, req.user);
   }
 
   @Post('products')

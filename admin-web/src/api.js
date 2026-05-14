@@ -200,6 +200,16 @@ export const adminApi = {
     const response = await client.get(`/api/admin/products/${id}`);
     return response.data;
   },
+  uploadProductCover: async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await client.post('/api/admin/products/cover-upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
   createProduct: async (payload) => {
     const response = await client.post('/api/admin/products', payload);
     return response.data;

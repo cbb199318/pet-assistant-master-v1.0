@@ -1210,6 +1210,12 @@ export class AdminService {
     return this.shopService.getAdminProductById(id, actor);
   }
 
+  async recordProductCoverUpload(url: string, actor: AdminActor) {
+    this.assertPermission(actor, 'products:update');
+    await this.logAdminAction(actor, 'upload_product_cover', 'product_asset', null, url);
+    return { url };
+  }
+
   async createProduct(
     data: {
       merchant_id?: number | null;
